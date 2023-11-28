@@ -11,56 +11,68 @@ model vinuniCS
 /* Insert your model definition here */
 
 global {
-	file shape_file_charging_areas <- file("../includes/vinuni_map/vinuni_gis_osm_chargingareas.shp");
+//	file shape_file_target <- file("../includes/vinuni_map/vinuni_gis_osm_target.shp");
+//	file shape_file_traffic <- file("../includes/vinuni_map/vinuni_gis_osm_traffic.shp");
+
+	
+	file shape_file_chargingareas <- shape_file("../includes/vinuni_map/vinuni_gis_osm_chargingareas.shp");	
+	file shape_file_residential <- shape_file("../includes/vinuni_map/vinuni_gis_osm_residential.shp");
+
+	file shape_file_roads <- file("../includes/vinuni_map/vinuni_gis_osm_road_clean.shp");
+	
 	file shape_file_buildings <- file("../includes/vinuni_map/vinuni_gis_osm_buildings.shp");
-	file shape_file_roads <- file("../includes/vinuni_map/vinuni_gis_osm_road.shp");
-	file shape_file_traffic <- file("../includes/vinuni_map/vinuni_gis_osm_traffic.shp");
-	file shape_file_bounds <- file("../includes/vinuni_map/vinuni_gis_osm_bound.shp");
-	geometry shape <- envelope(shape_file_roads, shape_file_bounds);
+	file shape_file_vinuni_bounds <- file("../includes/vinuni_map/vinuni_gis_osm_bound.shp");
+	file shape_file_boundary <- file("../includes/vinuni_map/vinuni_gis_osm_boundary.shp");
+
+	geometry shape <- envelope(shape_file_boundary);
     
 	float step <- 5 #mn;
-	int nb_car <- 40;
 	
-	date starting_date <- date("2019-09-01-00-00-00");
+	date starting_date <- date("2023-11-01-00-00-00");
+	
+	int nb_car <- 40;
     int min_work_start <- 8;
     int max_work_start <- 10;
     int min_work_end <- 17; 
     int max_work_end <- 19; 
-    float min_speed <- 10 #km / #h;
-    float max_speed <- 40 #km / #h; 
+    float min_speed <- 1 #km / #h;
+    float max_speed <- 5 #km / #h; 
     graph the_graph;
 	
 	init {
-		create charging_area from: shape_file_charging_areas with: [type::string(read ("fclass"))] {
+		create chargingAreas from: shape_file_chargingareas with: [type::string(read ("fclass"))] {
 			if type="C_parking" {
 				color <- #yellow ;
 			}
 		}
-		create road from: shape_file_roads with: [type::string(read ("fclass"))] {
-			if type="carway" {
-				color <- #purple ;
-			} else if type="outside" {
-				color <- #blue ;
-			}
-		}
+		
+		create residential from: shape_file_residential ;
+		
+		create vinuniBound from: shape_file_vinuni_bounds ;
+		create boundary from: shape_file_boundary ;
+		create building from: shape_file_buildings ;
+
+		create road from: shape_file_roads ;
 		the_graph <- as_edge_graph(road);
 		
-		create bound from: shape_file_bounds ;
-		create building from: shape_file_buildings ;
-		
-		list<charging_area> parking_area <- charging_area where (each.type="C_parking");
-		list<road> road_inside <- road where (each.type="carway") ;
-        list<road> road_outside <- road where (each.type="outside") ;
+		list<residential> residential_area <- residential where (true);
+		list<chargingAreas> vinuni_parking <- chargingAreas where (true);
 		create car number: nb_car {
 		    speed <- rnd(min_speed, max_speed);
 		    start_work <- rnd (min_work_start, max_work_start);
 		    end_work <- rnd(min_work_end, max_work_end);
-//            vinuni <- one_of(road_inside + road_inside) ;
-			target <- one_of(parking_area);
-            home <- one_of(road_outside + road_inside) ;
+			parking <- one_of(vinuni_parking);
+            home <- one_of(residential_area) ;
             parking_obj <- "outside_vinuni";
             location <- any_location_in(home); 
        }
+	}
+}
+
+species residential {
+	rgb residential_color <- rgb( 76, 60, 19 );
+	aspect base {
+		draw shape color: residential_color border: #black ;
 	}
 }
 
@@ -71,14 +83,20 @@ species building {
 	}
 }
 
-species bound {
+species vinuniBound {
 	rgb bound_color <- rgb(103, 174, 115);
 	aspect base {
 		draw shape color: bound_color border: #black ;
 	}
 }
 
-species charging_area {
+species boundary {
+	aspect base {
+		draw shape color: #white border: #black ;
+	}
+}
+
+species chargingAreas {
 	string type; 
 	rgb color <- #orange  ;
 	
@@ -98,17 +116,16 @@ species road  {
 
 species car skills: [moving] {
 	rgb color <- #red ;
-//    road vinuni <- nil ;
-	charging_area target <- nil;
-    road home <- nil;
+	chargingAreas parking <- nil;
+    residential home <- nil;
     int start_work ;
     int end_work  ;
     string parking_obj ; 
     point the_target <- nil ;
 
     reflex time_to_work when: current_date.hour = start_work and parking_obj = "outside_vinuni" {
-    		parking_obj <- "inside_vinuni" ;
-			the_target <- any_location_in (target);
+    	parking_obj <- "inside_vinuni" ;
+		the_target <- any_location_in (parking);
     }
     
     reflex time_to_go_home when: current_date.hour = end_work and parking_obj =  "inside_vinuni" {
@@ -122,7 +139,6 @@ species car skills: [moving] {
 	    	the_target <- nil ;
 		}
     }
-
     
 	aspect base {
 		draw circle(5) color: color border: #black;
@@ -141,9 +157,10 @@ experiment vinuni_traffic type: gui {
 	
 	output {
 		display vinuni_display type:3d {
-			species bound aspect: base;
+			species vinuniBound aspect: base;			
 			species building aspect: base;
-			species charging_area aspect: base ;
+			species residential aspect: base ;
+			species chargingAreas aspect: base ;
 			species road aspect: base ;
 			species car aspect: base ;
 		}
