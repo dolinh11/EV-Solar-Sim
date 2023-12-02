@@ -88,7 +88,7 @@ global {
 		    	parking <- one_of(vinuni_parking where (each.type="J_parking"));
 		    }
 		    
-            home <- one_of(residential_area) ;
+            home <- one_of(residential_area);
             parking_obj <- "outside_vinuni";
             location <- any_location_in(home); 
        }
