@@ -31,10 +31,17 @@ global {
 	date starting_date <- date("2023-11-01-00-00-00");
 	
 	int nb_car <- 40;
-    int min_work_start <- 8;
-    int max_work_start <- 10;
-    int min_work_end <- 17; 
-    int max_work_end <- 19; 
+	
+    int min_work_start_1 <- 8;
+    int max_work_start_1 <- 10;
+    int min_work_start_2 <- 10;
+    int max_work_start_2 <- 15;
+    
+    int min_work_end_1 <- 11; 
+    int max_work_end_1 <- 15; 
+    int min_work_end_2 <- 15; 
+    int max_work_end_2 <- 19; 
+    
     float min_speed <- 1 #km / #h;
     float max_speed <- 5 #km / #h; 
     graph the_graph;
@@ -59,9 +66,28 @@ global {
 		list<chargingAreas> vinuni_parking <- chargingAreas where (true);
 		create car number: nb_car {
 		    speed <- rnd(min_speed, max_speed);
-		    start_work <- rnd (min_work_start, max_work_start);
-		    end_work <- rnd(min_work_end, max_work_end);
-			parking <- one_of(vinuni_parking);
+		    
+		    //Define start_work hours with probability during interval 1 is P(arrive_early) = 0.7
+		    if flip(0.7) {
+		    	start_work <- rnd (min_work_start_1, max_work_start_1);
+		    } else {
+		    	start_work <- rnd (min_work_start_2, max_work_start_2);
+		    }
+		    
+		    //Define end_work hours with probability during interval 1 is P(leave_early) = 0.2
+		    if flip(0.2) {
+		    	end_work <- rnd(min_work_end_1, max_work_end_1);
+		    } else {
+		    	end_work <- rnd(min_work_end_2, max_work_end_2);
+		    }
+		  
+		    //Select parking area with P(C_parking) = 0.8
+		    if flip(0.8) {
+		    	parking <- one_of(vinuni_parking where (each.type="C_parking"));
+		    } else {
+		    	parking <- one_of(vinuni_parking where (each.type="J_parking"));
+		    }
+		    
             home <- one_of(residential_area) ;
             parking_obj <- "outside_vinuni";
             location <- any_location_in(home); 
@@ -148,21 +174,23 @@ species car skills: [moving] {
 experiment vinuni_traffic type: gui {
 //	parameter "Shapefile for the charging stations:" var: shape_file_charging_areas category: "GIS" ;
 	parameter "Number of car agents" var: nb_car category: "Car" ;
-	parameter "Earliest hour to start work" var: min_work_start category: "People" min: 2 max: 8;
-    parameter "Latest hour to start work" var: max_work_start category: "People" min: 8 max: 12;
-    parameter "Earliest hour to end work" var: min_work_end category: "People" min: 12 max: 16;
-    parameter "Latest hour to end work" var: max_work_end category: "People" min: 16 max: 23;
     parameter "minimal speed" var: min_speed category: "People" min: 0.1 #km/#h ;
     parameter "maximal speed" var: max_speed category: "People" max: 10 #km/#h;
 	
 	output {
 		display vinuni_display type:3d {
-			species vinuniBound aspect: base;			
+			species vinuniBound aspect: base;		
 			species building aspect: base;
 			species residential aspect: base ;
-			species chargingAreas aspect: base ;
-			species road aspect: base ;
-			species car aspect: base ;
+			species chargingAreas aspect: base;
+			species road aspect: base;
+			species car aspect: base;
+		}
+		display chart_display refresh: every(10#cycles)  type: 2d { 
+			chart "Car Position" type: pie style: exploded size: {1, 0.5} position: {0, 0.5} {
+				data "Inside VinUni" value: car count (each.parking_obj="inside_vinuni") color: #magenta ;
+				data "Outside VinUni" value: car count (each.parking_obj="outside_vinuni") color: #blue ;
+			}
 		}
 	}
 }
