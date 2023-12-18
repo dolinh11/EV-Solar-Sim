@@ -181,6 +181,7 @@ species car skills: [moving] {
     
     list<residential> residential_area <- residential where (true);
 	list<chargingAreas> vinuni_parking <- chargingAreas where (true);
+//	list<gate> gate_open <- gate where (each.state="open");
 	
 	init {
 		speed <- rnd(min_speed, max_speed);
@@ -203,6 +204,7 @@ species car skills: [moving] {
 		home <- one_of(residential_area);
         parking_obj <- "outside_vinuni";
         location <- any_location_in(home);
+//        the_gate <- one_of(gate where (each.state_type = "open"));
 	}
 	
 	action assign_slot virtual: true;
@@ -224,6 +226,14 @@ species car skills: [moving] {
 	    }
 	    parking_slot <- nil;
 	}
+	
+//	action move_to_gate {
+//		if parking_obj = "outside_vinuni" {
+//			do goto target: the_gate on: the_graph_outside;
+//		} else if parking_obj = "inside_vinuni" {
+//			do goto target: the_gate on: the_graph_inside;
+//		}
+//	}
 
     reflex time_to_work when: current_date.hour = start_work and parking_obj = "outside_vinuni" {
     	do parking;	
