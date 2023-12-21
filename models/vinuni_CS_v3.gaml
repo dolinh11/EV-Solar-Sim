@@ -55,7 +55,7 @@ global {
     
     int nb_parking_slot_C <- 29;
     int nb_parking_slot_J <- 27;
-    int nb_activeCS_Cparking_fast <- 2;
+    int nb_activeCS_Cparking_fast <- 0;
     int nb_activeCS_Cparking_normal <- 7;
     int nb_activeCS_Jparking_fast <- 2;
     int nb_activeCS_Jparking_normal <- 4;
