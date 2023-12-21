@@ -21,11 +21,11 @@ global {
 	file shape_file_boundary <- file("../includes/vinuni_map/vinuni_gis_osm_boundary.shp");
 	geometry shape <- envelope(shape_file_boundary);
 	float step <- 5 #mn;
-	date starting_date <- date("2023-11-01 07:00:00");
+	date starting_date <- date("2023-11-01 00:00:00");
 
 	//	int nb_car <- 40;
-	int nb_electrical <- 1;
-	int nb_gasoline <- 2;
+	int nb_electrical <- 12;
+	int nb_gasoline <- 28;
 	int min_work_start_1 <- 8;
 	int max_work_start_1 <- 10;
 	int min_work_start_2 <- 12;
@@ -34,8 +34,8 @@ global {
 	int max_work_end_1 <- 15;
 	int min_work_end_2 <- 17;
 	int max_work_end_2 <- 19;
-	float min_speed <- 0.3 #km / #h;
-	float max_speed <- 0.5 #km / #h;
+	float min_speed <- 3 #km / #h;
+	float max_speed <- 5 #km / #h;
 	graph the_graphA;
 	graph the_graph_inside;
 	graph the_graph_outside;
@@ -211,7 +211,7 @@ species car skills: [moving] {
 		}
 
 		home <- one_of(residential_area);
-		moving_obj <- "gate";
+		moving_obj <- "resting";
 		location <- any_location_in(home);
 		the_gate <- any_location_in(one_of(gate_open));
 	}
@@ -219,6 +219,11 @@ species car skills: [moving] {
 	action assign_slot virtual: true;
 
 	action move_to_gate {
+		if moving_obj = "resting" {
+			the_graph <- the_graph_outside;
+		} else if moving_obj = "working"{
+			the_graph <- the_graph_inside;
+		}
 		the_target <- any_location_in(one_of(gate_open));
 	}
 
@@ -228,61 +233,65 @@ species car skills: [moving] {
 		if parking_slot = "active_CS" {
 			parking_area.active_CS <- parking_area.active_CS - 1;
 		}
-
 	}
-	//	
-	//	action leaving {
-	//		moving_obj <- "leaving" ;
-	//		the_target <- any_location_in(home);
-	//		if parking_slot = "active_CS" {
-	//			parking.active_CS <- parking.active_CS + 1 ;
-	//	    }
-	//	    parking_slot <- nil;
-	//	}	
-	reflex time_to_work when: current_date.hour = start_work and moving_obj = "gate" and the_target = nil {
-		the_graph <- the_graph_outside;
+		
+	action leaving {
+		the_target <- any_location_in(home);
+		if parking_slot = "active_CS" {
+			parking_area.active_CS <- parking_area.active_CS + 1 ;
+		}
+		parking_slot <- nil;
+	}
+	
+	reflex time_to_work when: current_date.hour = start_work and moving_obj = "resting" and the_target = nil {
+//		the_graph <- the_graph_outside;
 		do move_to_gate;
 	}
 
 	reflex parking when: moving_obj = "parking" and the_target = nil {
-
 		the_graph <- the_graph_inside;
 		do parking;
 	}
 
-	//    reflex time_to_go_home when: current_date.hour = end_work and moving_obj = "parking" {
-	//        do leaving;
-	//    }
+	reflex time_to_go_home when: current_date.hour = end_work and moving_obj = "working" and the_target = nil {
+//		the_graph <- the_graph_inside;
+		do move_to_gate;
+    }
+    
+    reflex leaving when: moving_obj = "leaving" and the_target = nil {
+		the_graph <- the_graph_outside;
+		do leaving;
+	}
+	
+	reflex random_move when: (current_date.hour between(10,15)) and (moving_obj = "working" or moving_obj = "resting") and flip(0.01) and the_target = nil{
+		do move_to_gate;
+	}
+    
 	reflex move when: the_target != nil {
 		do goto target: the_target on: the_graph;
-		if (location =the_target  ) {
+		if (location = the_target  ) {
 			the_target <- nil;
-			if moving_obj = "gate" {
+			if moving_obj = "resting" {
 				moving_obj <- "parking";
 			}
-			else
-			if moving_obj = "parking" {
-				moving_obj <- nil;
+			else if moving_obj = "parking" {
+				moving_obj <- "working";
 			}
-
+			else if moving_obj = "working" {
+				moving_obj <- "leaving";
+			}
+			else if moving_obj = "leaving" {
+				moving_obj <- "resting";
+			}
 		}
-
 	}
 
 	aspect base {
 		draw circle(5) color: color border: #black;
-		if (the_target != nil) {
-			draw line([location, the_target]) color: #red;
-		}
-
+//		if (the_target != nil) {
+//			draw line([location, the_target]) color: #red;
+//		}
 	}
-	//	reflex random_move when: (current_date.hour between(10,15)) and flip(0.01){
-	//		if (location = any_location_in(home)) {
-	//			do parking;
-	//		} else {
-	// 			do leaving;
-	//		}
-	//	}
 }
 
 species car_gasoline parent: car {
@@ -294,9 +303,7 @@ species car_gasoline parent: car {
 		} else {
 			parking_slot <- "inactive_CS";
 		}
-
 	}
-
 }
 
 species car_electrical parent: car {
@@ -308,9 +315,7 @@ species car_electrical parent: car {
 		} else {
 			parking_slot <- "inactive_CS";
 		}
-
 	}
-
 }
 
 experiment vinuni_traffic type: gui {
@@ -337,13 +342,13 @@ experiment vinuni_traffic type: gui {
 
 		display chart_display refresh: every(10 #cycles) type: 2d {
 			chart "Gasoline Car Position" type: pie style: exploded size: {0.5, 1} position: {0.5, 0} {
-				data "Inside VinUni" value: car_gasoline count (each.moving_obj = "parking") color: #magenta;
-				data "Outside VinUni" value: car_gasoline count (each.moving_obj = "leaving") color: #blue;
+				data "Inside VinUni" value: car_gasoline count (each.moving_obj = "working") color: #magenta;
+				data "Outside VinUni" value: car_gasoline count (each.moving_obj = "resting") color: #blue;
 			}
 
 			chart "Electrical Car Position" type: pie style: exploded size: {0.5, 1} position: {0, 0} {
-				data "Inside VinUni" value: car_electrical count (each.moving_obj = "parking") color: #magenta;
-				data "Outside VinUni" value: car_electrical count (each.moving_obj = "leaving") color: #blue;
+				data "Inside VinUni" value: car_electrical count (each.moving_obj = "working") color: #magenta;
+				data "Outside VinUni" value: car_electrical count (each.moving_obj = "resting") color: #blue;
 			}
 
 		}
@@ -353,9 +358,6 @@ experiment vinuni_traffic type: gui {
 				data "Slots at C_parking" value: chargingAreas[0].active_CS color: #blue marker: false style: line;
 				data "Slots at J_parking" value: chargingAreas[1].active_CS color: #red marker: false style: line;
 			}
-
 		}
-
 	}
-
 }
