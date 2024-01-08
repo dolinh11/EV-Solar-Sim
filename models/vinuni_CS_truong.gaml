@@ -182,8 +182,8 @@ species car skills: [moving] {
 	rgb color;
 	chargingAreas parking <- nil;
     residential home <- nil;
-    float start_work ;
-    float end_work  ;
+    int start_work ;
+    int end_work  ;
     string parking_obj ; 
     point the_target <- nil ;
     point the_gate <- nil;
@@ -315,7 +315,7 @@ species car_electrical parent: car {
                                                               "VF9"::["fast"::240/60, "normal"::670/60]];
 	
 	init {
-		initial_SoC <- rnd(10,70); 		//assign a random SoC between 10% and 70%
+		initial_SoC <- rnd(10.0,70.0); 		//assign a random SoC between 10% and 70%
 		EV_model <- one_of(EV_models_at_vinuni); //assign a random EV model
 	}
 //	reflex assign_SoC_when_arriving_at_vinuni when: parking_obj = "inside_vinuni" {
