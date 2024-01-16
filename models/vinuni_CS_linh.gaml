@@ -25,7 +25,7 @@ global {
 
 	//	int nb_car <- 40;
 	int nb_electrical <- 12;
-	int nb_gasoline <- 28;
+	int nb_gasoline <- 30; //28
 	
 	int min_work_start_1 <- 8;
 	int max_work_start_1 <- 9;
@@ -46,16 +46,30 @@ global {
 	int nb_activeCS_Jparking <- 6;
 	int nb_activeCS_Cparking_fast <- 0;
 	int nb_activeCS_Jparking_fast <- 2;
+//	int nb_activeCS_slow_used;
+//	int nb_activeCS_fast_used;
 	int nb_activeCS_gasoline_used;
+	int nb_activesCS_electric_used;
+	int nb_activesCS_electric_charging;
+	int nb_activeCS_used;
+//	int nb_activeCS_used_test;
+
+	float  occupancy_rate;
+	float useful_occupancy_rate_1;
+	float useful_occupancy_rate_2;
 	
-	float revenue <- 0.0;
-	float profit <- 0.0;
-	float cost;
+	// Chia thành daily và monthly
+	float daily_revenue <- 0.0;
+	float daily_profit <- 0.0;
+	float daily_cost;
 	float total_energy_EVs <- 0.0;
 	
+	float monthly_revenue <- 0.0;
+	float monthly_profit <- 0.0;
+	float monthly_cost;
+	
 	float energy_consumption <- 0.0;
-	int nb_activeCS_slow_used;
-	int nb_activeCS_fast_used;
+	float monthly_energy_consumption <- 0.0;
 	
 	int nbEV_charged_statisfied;
 	int nbEV_uncharged_unsatisfied;
@@ -115,25 +129,9 @@ global {
 		the_graphA <- directed(as_edge_graph(road));
 		create car_gasoline number: nb_gasoline;
 		create car_electrical number: nb_electrical;
-		//		create car;
-	}
-
-	// Revenue and profit for each day
-	reflex calculate_profit when: every(#day){
-		revenue <- total_energy_EVs * 3355;
-		cost <- total_energy_EVs * 2049 + (nb_activeCS_Cparking + nb_activeCS_Jparking) * 500000 / 30;
-		profit <- revenue - cost;
-
-		total_energy_EVs <- 0.0;
 	}
 	
-	reflex calculate_energy {
-		nb_activeCS_gasoline_used <- length(car_gasoline where (each.parking_slot = "active_CS"));
-		nb_activeCS_fast_used <- (nb_activeCS_Cparking_fast - chargingAreas[0].activeCS_fast) + (nb_activeCS_Jparking_fast - chargingAreas[1].activeCS_fast);
-		nb_activeCS_slow_used <- (nb_activeCS_Cparking - chargingAreas[0].active_CS) + (nb_activeCS_Jparking - chargingAreas[1].active_CS) - nb_activeCS_fast_used - nb_activeCS_gasoline_used;
-		energy_consumption <- (5/60) * ((nb_activeCS_slow_used * 11) + (nb_activeCS_fast_used * 30)); 
-	}
-	
+	//indicator 1: average percent of daily charged EV
 	reflex calculate_percentage_statisfied {
 		nbEV_charged_statisfied <- length(car_electrical where (each.time_to_charge > 0 and each.parking_slot = "active_CS" and each.satisfied = true));
 		nbEV_uncharged_unsatisfied <- length(car_electrical where (each.parking_slot = "inactive_CS" and each.satisfied = false));
@@ -147,7 +145,7 @@ global {
 		total_statisfied_day <- total_statisfied_day + percentage_statisfied;
 	}
 	
-	reflex calculate_avg_statisfied when: every(#day) {
+	reflex calculate_avg_statisfied when: (current_date.hour = 23 and current_date.minute = 50) {
 		if total_statisfied_cycle != 0 {
 			avg_statisfied_day <- total_statisfied_day / total_statisfied_cycle;
 		} else {
@@ -155,6 +153,46 @@ global {
 		}
 		total_statisfied_day <- 0.0;
 		total_statisfied_cycle <- 0;
+	}
+	
+//	// indicator 2: monthly energy consumption
+//	reflex calculate_energy {
+//		nb_activeCS_gasoline_used <- length(car_gasoline where (each.parking_slot = "active_CS"));
+//		nb_activeCS_fast_used <- (nb_activeCS_Cparking_fast - chargingAreas[0].activeCS_fast) + (nb_activeCS_Jparking_fast - chargingAreas[1].activeCS_fast);
+//		nb_activeCS_slow_used <- (nb_activeCS_Cparking - chargingAreas[0].active_CS) + (nb_activeCS_Jparking - chargingAreas[1].active_CS) - nb_activeCS_fast_used - nb_activeCS_gasoline_used;
+//		energy_consumption <- (5/60) * ((nb_activeCS_slow_used * 11) + (nb_activeCS_fast_used * 30)); 
+//	}
+
+	// indicator 2: occupancy rate số trạm sạc active đang dùng/tổng số trạm (hoặc tổng số active)
+	reflex calculate_energy {
+		nb_activeCS_gasoline_used <- length(car_gasoline where (each.parking_slot = "active_CS"));
+		nb_activesCS_electric_used <- length(car_electrical where (each.parking_slot = "active_CS"));
+		nb_activeCS_used <- nb_activeCS_gasoline_used + nb_activesCS_electric_used;
+//		nb_activeCS_used_test <- (nb_activeCS_Cparking + nb_activeCS_Jparking) - (chargingAreas[0].active_CS + chargingAreas[1].active_CS);
+		
+		occupancy_rate <- nb_activeCS_used / (nb_activeCS_Cparking + nb_activeCS_Jparking);
+		
+	// Nếu chỉ tính số trạm sạc có xe điện đỗ vào là useful (kể cả khi xe sạc đầy rồi nhưng vẫn đỗ)
+		useful_occupancy_rate_1 <- nb_activesCS_electric_used / (nb_activeCS_Cparking + nb_activeCS_Jparking);
+		
+	// Nếu xét strict hơn là trạm sạc có xe điện đỗ và đang sạc (nghĩa là ko tính xe đã sạc đầy)
+		nb_activesCS_electric_charging <- length(car_electrical where (each.parking_slot = "active_CS" and each.is_charging = true));
+		useful_occupancy_rate_2 <- nb_activesCS_electric_charging / (nb_activeCS_Cparking + nb_activeCS_Jparking);
+	}
+
+	//indicator 3: monthly revenue and profit
+	reflex calculate_daily_profit when: (current_date.hour = 23 and current_date.minute = 50){
+		daily_revenue <- total_energy_EVs * 3355;
+		daily_cost <- total_energy_EVs * 2049 + (nb_activeCS_Cparking + nb_activeCS_Jparking) * 500000 / 30;
+		daily_profit <- daily_revenue - daily_cost;
+		monthly_energy_consumption <- 22*total_energy_EVs;
+		total_energy_EVs <- 0.0;
+	}
+	
+	reflex calculate_monthly_profit when: (current_date.hour = 23 and current_date.minute = 50){
+		monthly_revenue <- 22*daily_revenue;
+		monthly_cost <- 22*daily_cost;
+		monthly_profit <- 22*daily_profit;
 	}
 }
 
@@ -398,7 +436,7 @@ species car_electrical parent: car {
 	bool priority_fast <- flip(0.4) ? true : false; 
 	
 	int num_checkSlot <- 0;
-	float SoC <- 10.0 +rnd(80);  //battery level
+	float SoC <- 20.0 +rnd(70);  //battery level
 	string EV_model; //type of EV
 	float chargingRate_slow; // charging rate of EV at AC 11kW
 	float chargingRate_fast; // charging rate of EV at AC 30kW
@@ -525,15 +563,17 @@ species car_electrical parent: car {
 	}
 	
 	action reset {
-		SoC <- 10.0 + rnd(80);
+		SoC <- 20.0 + rnd(70);
 		time_to_charge <- 0 #mn;
 		done_charging <- false;
 		energy <- 0.0;
+		satisfied <- true;
+		move_slot <- false;
+		num_checkSlot <- 0;
 	}
 }
 
 experiment vinuni_traffic type: gui {
-//	parameter "Shapefile for the charging stations:" var: shape_file_charging_areas category: "GIS" ;
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car";
 	parameter "Number of electric car agents" var: nb_electrical category: "No. Car";
 	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations";
@@ -543,50 +583,70 @@ experiment vinuni_traffic type: gui {
 	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies";
 	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies";
 
-	//    parameter "minimal speed" var: min_speed category: "Speed" min: 0.1 #km/#h ;
-	//    parameter "maximal speed" var: max_speed category: "Speed" max: 10 #km/#h;
+	reflex save_result_avg_satisfied_percent when: (current_date.hour = 23 and current_date.minute = 55) {
+		save [nb_gasoline, nb_electrical, cycle, current_date, avg_statisfied_day] 
+	   		to: "Results/avg_percentage_statisfied.csv"  format:"csv" rewrite: (cycle = 287) ? true : false;
+	}
 	output synchronized:true{
-		display vinuni_display type: 2d {
-			species vinuniBound aspect: base;
-			species building aspect: base;
-			species residential aspect: base;
-			species chargingAreas aspect: base;
-			species road aspect: base;
-			species footway aspect: base;
-			species gate aspect: base;
-			species car_gasoline aspect: base;
-			species car_electrical aspect: base;
-		}
+//		display vinuni_display type: 2d {
+//			species vinuniBound aspect: base;
+//			species building aspect: base;
+//			species residential aspect: base;
+//			species chargingAreas aspect: base;
+//			species road aspect: base;
+//			species footway aspect: base;
+//			species gate aspect: base;
+//			species car_gasoline aspect: base;
+//			species car_electrical aspect: base;
+//		}
 
-		display time_to_charge refresh: every(12 #cycles) {
-		//			chart "datalist_bar" type: histogram series_label_position: onchart {
-		//				datalist legend: ["Average Time to charge","Number of Not charged" ] style: bar value:
-		//				[mean(car_electrical collect each.time_to_charge),/*100] color: [#green,#red ];
-		//			}
-			chart "Number of charged vehicle" type: histogram style: stack  {
-				data "Charged & Satisfied" accumulate_values: true value: nbEV_charged_statisfied color: #blue;
-				data "Not Charged & Unsatisfied" accumulate_values: true value: nbEV_uncharged_unsatisfied color: #yellow;
+//		display time_to_charge refresh: every(12 #cycles) {
+//		//			chart "datalist_bar" type: histogram series_label_position: onchart {
+//		//				datalist legend: ["Average Time to charge","Number of Not charged" ] style: bar value:
+//		//				[mean(car_electrical collect each.time_to_charge),/*100] color: [#green,#red ];
+//		//			}
+//			chart "Number of charged vehicle" type: histogram style: stack  {
+//				data "Charged & Satisfied" accumulate_values: true value: nbEV_charged_statisfied color: #blue;
+//				data "Not Charged & Unsatisfied" accumulate_values: true value: nbEV_uncharged_unsatisfied color: #yellow;
+//			}
+//		}
+		
+//		display percentage_statisfied type: 2d {
+//			chart "Satisfaction" type: series memorize: false x_serie_labels: current_date.hour {
+//				data "Percentage of EV satisfied" value: percentage_statisfied color: #blue marker: false style: line;
+//			}
+//		}
+		
+		display avg_daily_charged_EVs type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55){ //plot at 23:55 each day
+			chart "Average percentage (%) of daily charged EVs" type: series memorize: false x_label: "Day" {
+				data "Average daily charged EVs percent" value: 100*avg_statisfied_day color: #blue marker: true;
 			}
 		}
 		
-		display percentage_statisfied type: 2d {
-			chart "Satisfaction" type: series memorize: false x_serie_labels: current_date.hour {
-				data "Percentage of EV satisfied" value: percentage_statisfied color: #blue marker: false style: line;
+		display occupancy_rate refresh: every(#cycle) type: 2d {
+			chart "Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0.5, 0} {
+				data "Being used" value: occupancy_rate color: #magenta;
+				data "Available" value: (1-occupancy_rate) color: #blue;
+			}
+
+			chart "Useful Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0, 0} {
+				data "Being used" value: useful_occupancy_rate_1 color: #magenta;
+				data "Available" value: (1-useful_occupancy_rate_1) color: #blue;
 			}
 		}
 
-		display RP type: 2d {
-			chart "Revenue & Profit" type: series memorize: false x_serie_labels: current_date.day {
-				data "Total revenue" value: revenue color: #blue marker: false style: line;
-				data "Total profit" value: profit color: #red marker: false style: line;
-			}
-		}
+//		display RP type: 2d {
+//			chart "Revenue & Profit" type: series memorize: false x_serie_labels: current_date.day {
+//				data "Total revenue" value: revenue color: #blue marker: false style: line;
+//				data "Total profit" value: profit color: #red marker: false style: line;
+//			}
+//		}
 		
-		display energy_consumption type: 2d {
-			chart "Energy" type: series memorize: false x_serie_labels: current_date.hour {
-				data "Total Energy Consumption" value: energy_consumption color: #blue marker: false style: line;
-			}
-		}
+//		display energy_consumption type: 2d {
+//			chart "Energy" type: series memorize: false x_serie_labels: current_date.hour {
+//				data "Total Energy Consumption" value: energy_consumption color: #blue marker: false style: line;
+//			}
+//		}
 
 //		display chart_display refresh: every(12 #cycles) type: 2d {
 //			chart "Gasoline Car Position" type: pie style: exploded size: {0.5, 1} position: {0.5, 0} {
@@ -600,18 +660,18 @@ experiment vinuni_traffic type: gui {
 //			}
 //		}
 
-		display series type: 2d {
-			chart "Number of Active Charging Stations Available" type: series x_label: "#points to draw at each step" memorize: false x_serie_labels: current_date.hour {
-				data "Slots at C_parking" value: chargingAreas[0].active_CS color: #blue marker: false style: line;
-				data "Slots at J_parking" value: chargingAreas[1].active_CS color: #red marker: false style: line;
-			}
-		}
+//		display series type: 2d {
+//			chart "Number of Active Charging Stations Available" type: series x_label: "#points to draw at each step" memorize: false x_serie_labels: current_date.hour {
+//				data "Slots at C_parking" value: chargingAreas[0].active_CS color: #blue marker: false style: line;
+//				data "Slots at J_parking" value: chargingAreas[1].active_CS color: #red marker: false style: line;
+//			}
+//		}
 	}
 }
 
-experiment explo type:batch until:cycle>290 repeat:32 parallel:16 keep_seed: true {
+experiment explo type:batch until:cycle=287 repeat:32 parallel:16 keep_seed: true {
 	
-	parameter "nb groups" var:nb_activeCS_Cparking min:7 max:13;
+	parameter "nb_actveCS at C" var:nb_activeCS_Cparking min:7 max:13;
 	parameter "nb_EVs" var:nb_electrical min:10 max:40  step: 5;
 
 	method exploration;
