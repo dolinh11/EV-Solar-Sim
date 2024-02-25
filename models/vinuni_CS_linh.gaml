@@ -1,16 +1,7 @@
-/**
-* Name: vinuniCS
-* Based on the internal empty template. 
-* Author: linhdo
-* Tags: 
-*/
 model vinuniCS
 
-/* Insert your model definition here */
+
 global {
-//	file shape_file_target <- file("../includes/vinuni_map/vinuni_gis_osm_target.shp");
-//	file shape_file_traffic <- file("../includes/vinuni_map/vinuni_gis_osm_traffic.shp");
-//	file shape_file_roads <- file("../includes/vinuni_map/vinuni_gis_osm_road_clean.shp");
 	file shape_file_chargingareas <- shape_file("../includes/vinuni_map/vinuni_gis_osm_chargingareas.shp");
 	file shape_file_residential <- shape_file("../includes/vinuni_map/vinuni_gis_osm_residential.shp");
 	file shape_file_carway <- shape_file("../includes/vinuni_map/vinuni_gis_osm_carway_clean_v1.shp");
@@ -22,8 +13,7 @@ global {
 	geometry shape <- envelope(shape_file_boundary);
 	float step <- 5 #mn;
 	date starting_date <- date("2023-11-01 00:00:00");
-
-	//	int nb_car <- 40;
+	
 	int nb_electrical <- 12;
 	int nb_gasoline <- 30; //28
 	
@@ -42,7 +32,7 @@ global {
 	graph the_graph_inside;
 	graph the_graph_outside;
 	
-	int nb_activeCS_Cparking <- 7;
+	int nb_activeCS_Cparking <- 6;
 	int nb_activeCS_Jparking <- 6;
 	int nb_activeCS_Cparking_fast <- 0;
 	int nb_activeCS_Jparking_fast <- 2;
@@ -572,81 +562,265 @@ species car_electrical parent: car {
 		num_checkSlot <- 0;
 	}
 }
+//Experiment to show how to make multi simulations
+experiment alter2_effectiveness type: gui {
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 30;
+	init {
+		create simulation with: [policy_prohibit_parking :: true, policy_force_moving :: false];
+		create simulation with: [policy_prohibit_parking :: false, policy_force_moving :: true];
+		create simulation with: [policy_prohibit_parking :: true, policy_force_moving :: true];
+		//create vinuniCS_model with: [nb_electrical::30, nb_gasoline::28];
+	}
+	permanent {
+		display Comparison refresh: every(288 #cycle) {
+			chart "Avg Percent of charged EV" type: series {
+				loop s over: simulations  {
+					data "Case " + int(s) + ": policy 1: " + s.policy_prohibit_parking + ", policy 2: " + s.policy_force_moving value: 100*s.avg_statisfied_day marker: true style: line thickness: 3;
+				}
+			}
+		}
+//		display Comparison2 refresh: every(288 #cycle){
+//			chart "Avg Percent of charged EV" type: series {
+//				loop m over: [vinuniCS_model[2],vinuniCS_model[3]]  {
+//					data "Case " + int(m) + ": policy 1: " + m.policy_prohibit_parking + ", policy 2: " + m.policy_force_moving value: 100*m.avg_statisfied_day marker: true style: line thickness: 3;
+//				}
+//			}
+//		}
+	}
+	reflex column_name when: (cycle = 286){
+		save ["Cycle", "Current date", "Case 0", "Case 1", "Case 2", "Case 3"] 
+			to: "Results/multi_case_avg_percent.csv" format:"csv" rewrite: (cycle = 286) ? true : false header: false;	
+	}
+	reflex export_value when: (current_date.hour = 23 and current_date.minute = 55) {	
+		list combinedResults <- [cycle, current_date];
+		loop s over: simulations{
+			ask s {
+				combinedResults <- combinedResults + [100*s.avg_statisfied_day];
+			}
+		}
+		save combinedResults 
+			to: "Results/multi_case_avg_percent.csv" format:"csv" rewrite: false header: false;
+		}		
+}
+
+experiment Sobol type: batch until:(current_date.hour = 23 and current_date.minute = 55) repeat: 20 parallel: 20 {
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:60 step:2;
+	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" min:35 max:80 step:2;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:30 step:2;
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" min:6 max:30 step:2;
+	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" min:false max:true;
+	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" min:false max:true;
+	method sobol outputs:["avg_statisfied_day","monthly_energy_consumption","monthly_profit"] sample:1000 report:"Results/sobol.txt" results:"Results/sobol_raw.csv";
+}
+
+experiment replication_analysis type: batch until: (current_date.hour = 23 and current_date.minute = 55)  
+	repeat:50 keep_simulations:false parallel: 10 {
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:10 step:1;
+//	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" min:30 max:60 step:2;
+//	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:29 step:1;
+//	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" min:6 max:27 step:1;
+//	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" min:false max:true;
+//	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" min:false max:true;
+	method stochanalyse outputs:["avg_statisfied_day","monthly_energy_consumption"] report:"Results/stochanalysis.txt" results:"Results/stochanalysis_raw.csv" sample:100;
+} 
+experiment indicator1_exploration type: batch until: (cycle=287) repeat: 10000 parallel: 10 {
+	
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:10 step:1;
+//	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" min:30 max:80 step:2;
+//	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:30 step:2;
+//	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" min:6 max:30 step:2;
+//	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- true;
+//	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" min:0 max:1;
+	method exploration; 
+	reflex save_results_explo {
+		ask simulations {
+			save [int(self),current_date, self.nb_electrical, self.nb_gasoline,self.nb_activeCS_Cparking, self. nb_activeCS_Jparking ,self. policy_prohibit_parking, self.policy_force_moving, self.avg_statisfied_day] 
+		   		to: "Results/exploration_indicator1.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		}		
+	}
+	//the permanent section allows to define a output section that will be kept during all the batch experiment
+//	permanent {
+//		display charged_EV_percent  type: 2d {
+//			chart "Percent of charged vehicle" type: series {
+//				data "Mean Charged & Satisfied percent" value: mean(simulations collect each.avg_statisfied_day) marker: true style: line color: #blue;
+//				data "Min Charged & Satisfied percent" value: min(simulations collect each.avg_statisfied_day) marker: true style: line color: #black;
+//				data "Max Charged & Satisfied percent" value: max(simulations collect each.avg_statisfied_day) marker: true style: line color: #purple;
+//			}	
+//		}
+//	}
+//	permanent {
+//		display charged_EV_percent  type: 2d {
+//			chart "Percent of daily charged vehicle (%)" type: xy x_label: "Number of electric cars"{
+//				data "Mean Charged & Satisfied percent" value: {nb_electrical, 100*mean(simulations collect each.avg_statisfied_day)} marker: true style: line color: #blue;
+//				data "Min Charged & Satisfied percent" value: {nb_electrical, 100*min(simulations collect each.avg_statisfied_day)} marker: true style: line color: #black;
+//				data "Max Charged & Satisfied percent" value: {nb_electrical, 100*max(simulations collect each.avg_statisfied_day)} marker: true style: line color: #purple;
+//			}	
+//		}	
+//	}
+}
+experiment indicator2_exploration type: batch until: (current_date.day = 30 and current_date.hour = 23 and current_date.minute = 55) repeat: 10  {
+	
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:60 step:2;
+	method exploration; 
+	permanent {
+		display charged_EV_percent  type: 2d {
+			chart "Mean Monthly Energy Consumption (in kWh)" type: xy x_label: "Number of electric cars"{
+				data "Mean Monthly energy consumption" value: {nb_electrical, mean(simulations collect each.monthly_energy_consumption)} marker: true style: line color: #black thickness:4;
+			}	
+		}	
+	}
+}
+experiment indicator3_exploration type: batch until: (current_date.day = 30 and current_date.hour = 23 and current_date.minute = 55) repeat: 5  {
+	
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:60 step:2;
+	method exploration; 
+	permanent {
+		display charged_EV_percent  type: 2d {
+			chart "Mean Monthly Revenue and Profit (in VND)" type: xy x_label: "Number of electric cars"{
+				data "Mean Monthly Revenue" value: {nb_electrical, mean(simulations collect each.monthly_revenue)} marker: true style: line color: #blue thickness:4;
+				data "Mean Monthly Profit" value: {nb_electrical, mean(simulations collect each.monthly_profit)} marker: true style: line color: #red thickness:4;
+			}	
+		}	
+	}
+}
+experiment alter_1_indi_1_effectiveness type: gui {
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 30;
+	init {
+		create simulation with: [nb_activeCS_Cparking::10, nb_activeCS_Jparking::6];
+		create simulation with: [nb_activeCS_Cparking::6, nb_activeCS_Jparking::10];
+		create simulation with: [nb_activeCS_Cparking::10, nb_activeCS_Jparking::10];
+		create simulation with: [nb_activeCS_Cparking::20, nb_activeCS_Jparking::20];
+	}
+	permanent {
+		display Comparison refresh: every(288 #cycle) {
+			chart "Avg Percent of charged EV" type: series {
+				loop s over: simulations  {
+					data "C: " + s.nb_activeCS_Cparking + ", J: " + s.nb_activeCS_Jparking value: 100*s.avg_statisfied_day marker: true style: line thickness: 3;
+				}
+			}
+		}
+	}		
+}
+experiment alter1_indi1_exploration type: batch until: (cycle=287) repeat: 30 parallel: 10 {
+	
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:50 step:5;
+//	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" min:30 max:80 step:2;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:30 step:2;
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" min:6 max:30 step:2;
+//	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- true;
+//	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" min:0 max:1;
+	method exploration; 
+	reflex save_results_explo {
+		ask simulations {
+			save [int(self),current_date, self.nb_electrical, self.nb_gasoline,self.nb_activeCS_Cparking, self. nb_activeCS_Jparking ,self. policy_prohibit_parking, self.policy_force_moving, self.avg_statisfied_day] 
+		   		to: "Results/exploration_alter1_indi1_CJ.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		}		
+	}
+}
+experiment alter2_exploration type: batch until: (cycle=287) repeat: 10 parallel: 10 {
+	
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:50 step:20;
+	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:30 step:2;
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" min:6 max:30 step:2;
+	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- false;
+	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" <- false;
+	method exploration; 
+	reflex save_results_explo {
+		ask simulations {
+			save [int(self),current_date, self.nb_electrical, self.nb_gasoline,self.nb_activeCS_Cparking, self. nb_activeCS_Jparking ,self. policy_prohibit_parking, self.policy_force_moving, self.avg_statisfied_day,self.monthly_energy_consumption, self.monthly_profit] 
+		   		to: "Results/exploration_alter2_False_False.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		}		
+	}
+}
+experiment alter2_sobol type: batch until:(cycle=287) repeat: 30 parallel: 20 {
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:50 step:2;
+	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" <- 6;
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 6;
+	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" min:false max:true;
+	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" min:false max:true;
+	method sobol outputs:["avg_statisfied_day","monthly_energy_consumption","monthly_profit"] sample:1000 report:"Results/sobol_alter2.txt" results:"Results/exploration_alter2.csv";
+}
 
 experiment vinuni_traffic type: gui {
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car";
-	parameter "Number of electric car agents" var: nb_electrical category: "No. Car";
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations";
-	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "No. Active Charrging Stations";
-	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations";
-	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations";
-	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies";
-	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies";
+	parameter "Number of electric car agents" var: nb_electrical category: "No. Car" <- 20;
+	parameter "Number of active charging stations at Building C" var: nb_activeCS_Cparking category: "No. Active Charrging Stations";
+	parameter "Number of active charging stations at Building J" var: nb_activeCS_Jparking category: "No. Active Charrging Stations";
+	parameter "Number of fast charging stations at Building C" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations";
+	parameter "Number of fast charging stations at Building J" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations";
+	parameter "Policy Level 1: Banning gasoline cars from occupying active charging stations" var: policy_prohibit_parking category: "Policies";
+	parameter "Policy Level 2: Requiring EVs to relocate to inactive charging stations once fully charged" var: policy_force_moving category: "Policies";
 
 	reflex save_result_avg_satisfied_percent when: (current_date.hour = 23 and current_date.minute = 55) {
 		save [nb_gasoline, nb_electrical, cycle, current_date, avg_statisfied_day] 
 	   		to: "Results/avg_percentage_statisfied.csv"  format:"csv" rewrite: (cycle = 287) ? true : false;
 	}
 	output synchronized:true{
-//		display vinuni_display type: 2d {
-//			species vinuniBound aspect: base;
-//			species building aspect: base;
-//			species residential aspect: base;
-//			species chargingAreas aspect: base;
-//			species road aspect: base;
-//			species footway aspect: base;
-//			species gate aspect: base;
-//			species car_gasoline aspect: base;
-//			species car_electrical aspect: base;
-//		}
+		display vinuni_display type: 2d {
+			species vinuniBound aspect: base;
+			species building aspect: base;
+			species residential aspect: base;
+			species chargingAreas aspect: base;
+			species road aspect: base;
+			species footway aspect: base;
+			species gate aspect: base;
+			species car_gasoline aspect: base;
+			species car_electrical aspect: base;
+		}
 
 //		display time_to_charge refresh: every(12 #cycles) {
-//		//			chart "datalist_bar" type: histogram series_label_position: onchart {
-//		//				datalist legend: ["Average Time to charge","Number of Not charged" ] style: bar value:
-//		//				[mean(car_electrical collect each.time_to_charge),/*100] color: [#green,#red ];
-//		//			}
+//////		//			chart "datalist_bar" type: histogram series_label_position: onchart {
+//////		//				datalist legend: ["Average Time to charge","Number of Not charged" ] style: bar value:
+//////		//				[mean(car_electrical collect each.time_to_charge),/*100] color: [#green,#red ];
+//////		//			}
 //			chart "Number of charged vehicle" type: histogram style: stack  {
 //				data "Charged & Satisfied" accumulate_values: true value: nbEV_charged_statisfied color: #blue;
 //				data "Not Charged & Unsatisfied" accumulate_values: true value: nbEV_uncharged_unsatisfied color: #yellow;
 //			}
 //		}
 		
-//		display percentage_statisfied type: 2d {
-//			chart "Satisfaction" type: series memorize: false x_serie_labels: current_date.hour {
-//				data "Percentage of EV satisfied" value: percentage_statisfied color: #blue marker: false style: line;
-//			}
-//		}
-		
-		display avg_daily_charged_EVs type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55){ //plot at 23:55 each day
-			chart "Average percentage (%) of daily charged EVs" type: series memorize: false x_label: "Day" {
-				data "Average daily charged EVs percent" value: 100*avg_statisfied_day color: #blue marker: true;
+		display percentage_statisfied type: 2d {
+			chart "Indicator 1: EV Charging Rate (%)" type: series memorize: false x_serie_labels: current_date.hour {
+				data "Percentage of EV satisfied" value: 100*percentage_statisfied color: #blue marker: false style: line;
 			}
 		}
 		
-		display occupancy_rate refresh: every(#cycle) type: 2d {
-			chart "Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0.5, 0} {
-				data "Being used" value: occupancy_rate color: #magenta;
-				data "Available" value: (1-occupancy_rate) color: #blue;
-			}
-
-			chart "Useful Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0, 0} {
-				data "Being used" value: useful_occupancy_rate_1 color: #magenta;
-				data "Available" value: (1-useful_occupancy_rate_1) color: #blue;
-			}
-		}
-
-//		display RP type: 2d {
-//			chart "Revenue & Profit" type: series memorize: false x_serie_labels: current_date.day {
-//				data "Total revenue" value: revenue color: #blue marker: false style: line;
-//				data "Total profit" value: profit color: #red marker: false style: line;
+//		display avg_daily_charged_EVs type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55){ //plot at 23:55 each day
+//			chart "Daily EV Charging Rate (%)" type: series memorize: false x_label: "Day" {
+//				data "Average daily charged EVs percent" value: 100*avg_statisfied_day color: #blue marker: true;
 //			}
 //		}
 		
-//		display energy_consumption type: 2d {
-//			chart "Energy" type: series memorize: false x_serie_labels: current_date.hour {
-//				data "Total Energy Consumption" value: energy_consumption color: #blue marker: false style: line;
+//		display occupancy_rate type: 2d refresh: every(12 #cycles){
+//			chart "Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0.5, 0} {
+//				data "Being used" value: occupancy_rate color: #magenta;
+//				data "Available" value: (1-occupancy_rate) color: #blue;
+//			}
+//
+//			chart "Useful Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0, 0} {
+//				data "Being used" value: useful_occupancy_rate_1 color: #magenta;
+//				data "Available" value: (1-useful_occupancy_rate_1) color: #blue;
+//			}
+//			chart "Useful Occupancy Rate over time" type: series {
+//				data "Charging port occupancy rate" value: useful_occupancy_rate_1;
 //			}
 //		}
+
+//		display Revenue_Profit type: 2d  refresh: (current_date.hour = 23 and current_date.minute = 55){ 
+//			chart "Monthly Revenue & Profit (in VND)" type: series memorize: false x_label: "Month"{
+//				data "Total monthly revenue" value: monthly_revenue color: #black marker: true;
+//				data "Total monthly cost" value: monthly_cost color: #red marker: true;
+//				data "Total monthly profit" value: monthly_profit color: #blue marker: true;
+//			}
+//		}
+//		
+//		display monthly_energy_consumption type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55) {
+//			chart "Monthly Electric Energy Consumption (kWh)" type: series memorize: false x_label: "Month" {
+//				data "monthly_energy_consumption (kWh)" value: monthly_energy_consumption color: #black marker: true style: line;
+//			}
+//		} 
 
 //		display chart_display refresh: every(12 #cycles) type: 2d {
 //			chart "Gasoline Car Position" type: pie style: exploded size: {0.5, 1} position: {0.5, 0} {
