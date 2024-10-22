@@ -1,7 +1,7 @@
 /**
 * Name: vinuniCS
 * Based on the internal empty template. 
-* Author: linhdo, truongnguyen
+* Author: linhdo
 * Tags: 
 */
 model vinuniCS
@@ -18,7 +18,45 @@ global {
 	file shape_file_boundary <- file("../includes/vinuni_map/vinuni_gis_osm_boundary.shp");
 	geometry shape <- envelope(shape_file_boundary);
 	float step <- 5 #mn;
-	date starting_date <- date("2023-11-01 00:00:00");
+	date starting_date <- date("2024-01-01 00:00:00");
+	
+	file energy_realtime <- csv_file("../includes/average_by_time_data.csv",",");
+	
+	init {
+		//convert the file into a matrix
+		matrix data <- matrix(energy_realtime);
+		//loop on the matrix rows (skip the first header line)
+		loop i from: 1 to: data.rows -1{
+			//loop on the matrix columns
+			loop j from: 0 to: data.columns -1{
+				write "data rows:"+ i +" colums:" + j + " = " + data[j,i];
+			}	
+		}		
+	}
+	
+	reflex update_values_from_csv {
+    // Kiểm tra xem current_row có nằm trong phạm vi ma trận không
+	    if (current_row < data.rows) {
+	        // Lặp qua tất cả các cá thể của solar_energy và cập nhật giá trị
+	        loop solar over: solar_energy {
+				solar.air_temp <- data[0, current_row];	
+				solar.solar_ghi <- data[1, current_row];	
+			}
+	        // Lặp qua tất cả các cá thể của wind_energy và cập nhật giá trị
+	        loop wind over: wind_energy {
+				wind.wind_speed <- data[2, current_row];	
+			}
+	        
+	        // Cập nhật chỉ số dòng cho lần tiếp theo
+	        current_row <- current_row + 1;
+	    } else {
+	        write "End of data reached";
+	    }
+	}
+
+	// Energy Real-time data
+	int current_row <- 0;
+	matrix data <- matrix(energy_realtime);
 
 	// Vehicle-related global variables
 	int nb_electrical <- 12;
@@ -71,9 +109,53 @@ global {
 	float monthly_cost;
 	
 	// Energy-related variables
+	bool add_solar <- true; 
+	int nb_solar <- 30;
+	bool add_wind <- true;
+	int nb_wind <- 4;
+	int nb_bess <- 1;
+
+    // Energy Consumption 
 	float total_energy_EVs <- 0.0;
 	float energy_consumption <- 0.0;
 	float monthly_energy_consumption <- 0.0;
+	float self_consumption;
+	float self_sufficiency;
+	float monthly_renew_energy;
+	
+	// total renewable energy generate
+	float total_renew_energy <- 0.0;
+	float total_solar_energy <- 0.0;
+	float total_wind_energy <- 0.0;
+	
+	float renew_energy_generated;
+	float solar_energy_generated;
+	float wind_energy_generated;
+	
+	float charge_by_renew;
+	float charge_by_bess;
+	float charge_by_grid;
+	
+	// Renewable Energy Cost variable
+	float solar_cost;
+	float wind_cost;
+	float renew_invest_cost;
+	float payback_process;
+	float payback_period;
+	float monthly_renew_charge;
+	float daily_renew_charge;
+	
+	float solar_capex_unit <- 18000000; // 18tr VND/ 1kWp
+	float solar_opex <- 600000; // 600k
+	float solar_capex;
+	
+	float wind_capex_unit <- 76000000; //  76tr VND/ 3kWh
+	float wind_opex <- 1200000; // 1tr2
+	float wind_capex;
+	
+	// BESS 
+	float bess_capacity <- 80000;
+	float bess_SoC <- 0;
 
 	init {
 		create chargingAreas from: shape_file_chargingareas with: [type:: string(read("fclass")), active_CS::int(read("active_CS")), num_CS::int(read("num_CS"))] {
@@ -123,6 +205,24 @@ global {
 		
 		create car_gasoline number: nb_gasoline;
 		create car_electrical number: nb_electrical;
+		create solar_energy number: nb_solar;
+		create wind_energy number: nb_wind;
+		
+		solar_capex <- solar_capex_unit * nb_solar * 0.61;
+		solar_cost <- solar_capex + solar_opex;
+		
+		wind_capex <- wind_capex_unit * nb_wind;
+		wind_cost <- wind_capex + wind_opex;
+		
+		payback_process <- solar_cost + wind_cost;
+	}
+	
+	reflex update_bess_SoC {
+        // Check if no car is charging and bess_SoC is below capacity
+        if every(car_electrical where (each.is_charging = false)) and bess_SoC < bess_capacity {
+            bess_SoC <- bess_SoC + renew_energy_generated;
+            bess_SoC <- min(bess_SoC, bess_capacity);
+        }
 	}
 
 	//indicator 1: average percent of daily charged EV
@@ -150,14 +250,6 @@ global {
 		total_statisfied_cycle <- 0;
 	}
 
-	// indicator 2: monthly energy consumption
-	//	reflex calculate_energy {
-	//		nb_activeCS_gasoline_used <- length(car_gasoline where (each.parking_slot = "active_CS"));
-	//		nb_activeCS_fast_used <- (nb_activeCS_Cparking_fast - chargingAreas[0].activeCS_fast) + (nb_activeCS_Jparking_fast - chargingAreas[1].activeCS_fast);
-	//		nb_activeCS_slow_used <- (nb_activeCS_Cparking - chargingAreas[0].active_CS) + (nb_activeCS_Jparking - chargingAreas[1].active_CS) - nb_activeCS_fast_used - nb_activeCS_gasoline_used;
-	//		energy_consumption <- (5/60) * ((nb_activeCS_slow_used * 11) + (nb_activeCS_fast_used * 30)); 
-	//	}
-
 	// indicator 2: occupancy rate số trạm sạc active đang dùng/tổng số trạm (hoặc tổng số active)
 	reflex calculate_energy {
 		nb_activeCS_gasoline_used <- length(car_gasoline where (each.parking_slot = "active_CS"));
@@ -175,20 +267,83 @@ global {
 	}
 
 	//indicator 3: monthly revenue and profit
-	reflex calculate_daily_profit when: (current_date.hour = 23 and current_date.minute = 50) {
-		daily_revenue <- total_energy_EVs * 3355;
-		daily_cost <- total_energy_EVs * 2049 + (nb_activeCS_Cparking + nb_activeCS_Jparking) * 500000 / 30;
+	reflex calculate_daily_profit when: (current_date.hour = 23 and current_date.minute = 45) {
+		daily_revenue <- (total_energy_EVs * 3355) / 1000;
+		daily_cost <- (charge_by_grid * 2049 + (nb_activeCS_Cparking + nb_activeCS_Jparking) * 500000 / 30) / 1000;
 		daily_profit <- daily_revenue - daily_cost;
+		daily_renew_charge <- charge_by_bess + charge_by_renew;
 		monthly_energy_consumption <- 22 * total_energy_EVs;
-		total_energy_EVs <- 0.0;
+		monthly_renew_charge <- 22 * daily_renew_charge;
 	}
-
-	reflex calculate_monthly_profit when: (current_date.hour = 23 and current_date.minute = 50) {
+	
+	reflex calculate_monthly_profit when: (current_date.hour = 23 and current_date.minute = 45) {
 		monthly_revenue <- 22 * daily_revenue;
 		monthly_cost <- 22 * daily_cost;
 		monthly_profit <- 22 * daily_profit;
+		payback_process <- payback_process - monthly_profit;
 	}
+	
 
+	// Indicatior 4: Renewable Energy Efficiency	
+	reflex calculate_daily_energy_ratio when: (current_date.hour = 23 and current_date.minute = 50){
+		if  add_solar or add_wind {
+			self_consumption <- daily_renew_charge / total_renew_energy;
+			self_sufficiency <- daily_renew_charge / total_energy_EVs;
+		}
+		total_energy_EVs <- 0.0;
+		total_renew_energy <- 0.0;
+		charge_by_bess <- 0.0;
+		charge_by_renew <- 0.0;
+		charge_by_grid <- 0.0;
+	}
+	
+	reflex total_renew_generation {
+		renew_energy_generated <- solar_energy_generated + wind_energy_generated;
+		total_solar_energy <- total_solar_energy + solar_energy_generated ;
+		total_wind_energy <-  total_wind_energy + wind_energy_generated ;
+		total_renew_energy <- total_renew_energy + renew_energy_generated;
+	}
+}
+
+species solar_energy {
+	int solar_ghi;
+	float air_temp;
+	float unit_panel_area <- 2.7 #m2;
+	float total_panel_area;
+	float current_panel_tmp;
+	
+	init {
+//		solar_ghi <- rnd(400);
+//		air_temp <- rnd(15.0, 34.0);
+		total_panel_area <- nb_solar * unit_panel_area;
+	}
+	
+	reflex generate_energy when: add_solar {
+		current_panel_tmp <- (air_temp + 25 * solar_ghi/800 * 0.7664) / (1 + 25 * solar_ghi/800 * 0.0175);
+		solar_energy_generated <-  total_panel_area / 12 * 1.15 * solar_ghi/800 * 610 * 0.226 * (1 - 0.0028 * (current_panel_tmp - 25));
+	
+	}
+}
+
+species wind_energy {
+	float wind_speed;
+	float v_cut_in <- 3.5 #m/#s;
+	float v_cut_out <- 45 #m/#s;
+	float v_r <- 12 #m/#s; 
+	float P_rated <- 250;
+	
+	init {
+	}
+	
+	reflex generate_energy when: add_wind {
+		if wind_speed >= v_cut_in and wind_speed <= v_r {
+			wind_energy_generated <- nb_wind * P_rated * (( wind_speed * wind_speed * wind_speed - 42.875) / (1728 - 42.875));
+		} else if wind_speed >= v_r and wind_speed <= v_cut_out {
+			wind_energy_generated <- nb_wind * P_rated;
+		} else {
+			wind_energy_generated <- 0;
+		}
+	}
 }
 
 species gate {
@@ -278,7 +433,7 @@ species car skills: [moving] {
 	list<residential> residential_area <- residential where (true);
 	list<chargingAreas> vinuni_Cparking <- chargingAreas where (each.type = "C_parking");
 	list<chargingAreas> vinuni_Jparking <- chargingAreas where (each.type = "J_parking");
-	list<gate> gate_open <- gate where (each.state_type = "open");
+	list<gate> gate_open <- gate where (each.state_type = "open");	
 
 	init {
 		speed <- rnd(min_speed, max_speed);
@@ -444,19 +599,21 @@ species car_electrical parent: car {
 	map<string, float> model_chargingRate_slow <- ["VFe34"::100 / 46, "VF8"::100 / 94, "VF9"::100 / 134];
 	map<string, float> model_chargingRate_fast <- ["VFe34"::100 / 16, "VF8"::100 / 34, "VF9"::100 / 48];
 	float time_to_charge <- 0 #nm;
+	
+	float energy_needed;
+    float energy_from_renew;
+    float energy_from_bess;
 
 	init {
 		if SoC <= 20 {
 			parking_area <- one_of(vinuni_Jparking);
 			priority_fast <- true;
 		}
-
 		EV_model <- one_of(EV_models_at_vinuni);
 		chargingRate_slow <- model_chargingRate_slow[EV_model];
 		chargingRate_fast <- model_chargingRate_fast[EV_model];
 	}
 
-	
 	action change_slot {
 		if policy_force_moving {
 			parking_slot <- "inactive_CS";
@@ -464,9 +621,7 @@ species car_electrical parent: car {
 			if charging_mode = "fast" {
 				parking_area.activeCS_fast <- parking_area.activeCS_fast + 1;
 			}
-
 		}
-
 		move_slot <- true;
 	}
 	
@@ -489,7 +644,6 @@ species car_electrical parent: car {
 			} else {
 				do assign_slot_randomly;
 			}
-
 		} else if SoC <= 35 {
 			do check_slot;
 		} }
@@ -543,35 +697,129 @@ species car_electrical parent: car {
 		//Assume that when an EV decides to park in an active_CS slot, it always plugs the charge. 			
 			is_charging <- true;
 		}
-
 	}
-
+    
 	reflex charge when: is_charging and moving_obj = "working" {
-		time_to_charge <- time_to_charge + 5;
-		if charging_mode = "slow" {
-			SoC <- SoC + chargingRate_slow;
-		} else if charging_mode = "fast" {
-			SoC <- SoC + chargingRate_fast;
-		}
-
-		if (SoC > 99) or (not in_parkingArea) {
-			if charging_mode = "slow" {
-				energy <- 11 * (time_to_charge / 60);
-			} else if charging_mode = "fast" {
-				energy <- 30 * (time_to_charge / 60);
-			}
-
-			total_energy_EVs <- total_energy_EVs + energy;
-			done_charging <- true;
-			is_charging <- false;
-		}
-
+	    time_to_charge <- time_to_charge + 5;
+	    
+	    if charging_mode = "slow" {
+	        energy_needed <- 11000 * (5 / 60);
+	        SoC <- SoC + chargingRate_slow;
+	    } else if charging_mode = "fast" {
+	        energy_needed <- 30000 * (5 / 60);
+	        SoC <- SoC + chargingRate_fast;
+	    }
+	
+	    // Thứ tự ưu tiên sử dụng nguồn sạc: renew -> bess -> grid
+	    if renew_energy_generated > 0 {
+	        energy_from_renew <- min(renew_energy_generated, energy_needed);
+	        charge_by_renew <- charge_by_renew + energy_from_renew;
+	        total_energy_EVs <- total_energy_EVs + energy_from_renew; // Cập nhật tổng năng lượng sạc
+	        renew_energy_generated <- renew_energy_generated - energy_from_renew;
+	        energy_needed <- energy_needed - energy_from_renew;
+	    }
+	
+	    if energy_needed > 0 and bess_SoC > 0 {
+	        energy_from_bess <- min(bess_SoC, energy_needed);
+	        charge_by_bess <- charge_by_bess + energy_from_bess;
+	        total_energy_EVs <- total_energy_EVs + energy_from_bess; // Cập nhật tổng năng lượng sạc
+	        bess_SoC <- bess_SoC - energy_from_bess;
+	        energy_needed <- energy_needed - energy_from_bess;
+	    }
+	
+	    if energy_needed > 0 {
+	        charge_by_grid <- charge_by_grid + energy_needed;
+	        total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
+	        energy_needed <- 0;
+	    }
+	
+	    // Sạc BESS với năng lượng dư từ nguồn tái tạo nếu không còn nhu cầu từ xe
+	    if energy_needed = 0 and renew_energy_generated > 0 {
+	        bess_SoC <- bess_SoC + renew_energy_generated;
+	        bess_SoC <- min(bess_SoC, bess_capacity); // Đảm bảo không vượt quá dung lượng BESS
+	        renew_energy_generated <- 0;
+	    }
+	
+	    // Kiểm tra nếu sạc xong hoặc không còn trong khu vực đỗ xe
+	    if (SoC > 99) or (not in_parkingArea) {
+	        done_charging <- true;
+	        is_charging <- false;
+	    }
 	}
 
 	reflex move_to_inactive when: done_charging and in_parkingArea and not move_slot {
 		do change_slot;
 	}
 }
+
+experiment vinuni_traffic_dashboard type: gui {
+	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car";
+	parameter "Number of electric car agents" var: nb_electrical category: "No. Car";
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations";
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "No. Active Charrging Stations";
+	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations";
+	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations";
+	parameter "Adding solar panel into CS Infrastructure" var: add_solar category: "Renewable Energy";
+	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy";
+	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy";
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy";
+
+	reflex save_result_avg_satisfied_percent when: (current_date.hour = 23 and current_date.minute = 55) {
+		save [nb_gasoline, nb_electrical, cycle, current_date, avg_statisfied_day] 
+		   	to: "Results/avg_percentage_statisfied.csv"  format:"csv" rewrite: (cycle = 287) ? true : false;
+	}
+
+	output synchronized: true {
+		display vinuni_display type: 2d {
+			species vinuniBound aspect: base;
+			species building aspect: base;
+			species residential aspect: base;
+			species chargingAreas aspect: base;
+			species road aspect: base;
+			species footway aspect: base;
+			species gate aspect: base;
+			species car_gasoline aspect: base;
+			species car_electrical aspect: base;
+//			species bess;
+//			species solar_energy;
+//			species wind_energy;
+		}
+			
+		display avg_daily_charged_EVs type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55){ //plot at 23:55 each day
+			chart "Daily EV Charging Rate (%)" type: series memorize: false x_label: "Day" {
+				data "Average daily charged EVs percent" value: 100*avg_statisfied_day color: #blue marker: true;
+			}
+		}
+
+		display Revenue_Profit type: 2d  refresh: (current_date.hour = 23 and current_date.minute = 55){ 
+			chart "Monthly Revenue & Profit (in VND)" type: series memorize: false x_label: "Month"{
+				data "Total monthly revenue" value: monthly_revenue color: #black marker: true;
+				data "Total monthly cost" value: monthly_cost color: #red marker: true;
+				data "Total monthly profit" value: monthly_profit color: #blue marker: true;
+			}		
+		}
+		display Payback type: 2d  refresh: (current_date.hour = 23 and current_date.minute = 55){ 
+			chart "Payback process" type: series memorize: false x_label: "Month"{
+				data "Payback for investment" value: payback_process color: #green marker: true;
+			}	
+		}
+		
+		display monthly_energy_consumption type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55) {
+			chart "Monthly Electric Energy Consumption (kWh)" type: series memorize: false x_label: "Month" {
+				data "monthly_energy_consumption (kWh)" value: monthly_energy_consumption/1000 color: #red marker: true style: line;
+				data "monthly_renewable_energy_consumption (kWh)" value: monthly_renew_charge/1000 color: #green marker: true style: line;
+			}
+		}
+		
+		display ratio_renewable_energy type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55) {
+			chart "Daily Renewable Energy Effectiveness" type: series memorize: false x_label: "Day" {
+				data "self-consumpation ratio" value: self_consumption color: #red marker: true style: line;
+				data "self-sufficiency ratio" value: self_sufficiency color: #green marker: true style: line;
+			}
+		} 
+	}
+}
+
 
 experiment Sobol type: batch until:(current_date.hour = 23 and current_date.minute = 55) repeat: 20 parallel: 20 {
 	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:60 step:2;
@@ -659,17 +907,27 @@ experiment alter1_indi1_exploration type: batch until: (cycle=287) repeat: 30 pa
 }
 
 experiment alter2_exploration type: batch until: (cycle=287) repeat: 10 parallel: 10 {
-	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:50 step:20;
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 10;
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:30 step:2;
-	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" min:6 max:30 step:2;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:30 step:3;
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 10;
+	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- false;
+	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- false;
+	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" <- 0;//min: 30 max: 210 step: 30;
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" <- 0;
 	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- false;
 	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" <- false;
+	
 	method exploration; 
 	reflex save_results_explo {
 		ask simulations {
-			save [int(self),current_date, self.nb_electrical, self.nb_gasoline,self.nb_activeCS_Cparking, self. nb_activeCS_Jparking ,self. policy_prohibit_parking, self.policy_force_moving, self.avg_statisfied_day,self.monthly_energy_consumption, self.monthly_profit] 
-		   		to: "Results/exploration_alter2_False_False.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+			save [int(self), self.nb_electrical, self.nb_activeCS_Cparking,
+					self. nb_solar, self.nb_wind,  
+					self.avg_statisfied_day, self.monthly_profit,
+					self.monthly_energy_consumption, self.monthly_renew_charge, 
+					self.self_consumption, self.self_sufficiency
+			] 
+		   		to: "Results/exploration_EV10_0renew.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }
