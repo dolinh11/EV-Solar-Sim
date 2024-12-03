@@ -1,10 +1,4 @@
-/**
-* Name: vinuniCS
-* Based on the internal empty template. 
-* Author: linhdo, truongnguyen
-* Tags: 
-*/
-/**
+/*/**
 * Name: vinuniCS
 * Based on the internal empty template. 
 * Author: linhdo
@@ -26,9 +20,8 @@ global {
 	float step <- 5 #mn;
 	date starting_date <- date("2024-01-01 00:00:00");
 	
-//	file energy_realtime <- csv_file("../includes/average_by_time_data.csv",",");
-	file energy_realtime <- csv_file("../includes/energy_data.csv",",");
-
+	file energy_realtime <- csv_file("../includes/average_by_time_data.csv",",");
+//	file energy_realtime <- csv_file("../includes/energy_data.csv",",");
 	
 	init {
 		//convert the file into a matrix
@@ -45,18 +38,14 @@ global {
 	reflex update_values_from_csv {
     // Kiểm tra xem current_row có nằm trong phạm vi ma trận không
 	    if (current_row < data.rows) {
-	        // Lặp qua tất cả các cá thể của solar_energy và cập nhật giá trị
 	        loop solar over: solar_energy {
 				solar.air_temp <- data[0, current_row];	
 				solar.solar_ghi <- data[1, current_row];	
 			}
-	        // Lặp qua tất cả các cá thể của wind_energy và cập nhật giá trị
 	        loop wind over: wind_energy {
 				wind.wind_speed <- data[2, current_row];	
 			}
-	        
-	        // Cập nhật chỉ số dòng cho lần tiếp theo
-	        current_row <- current_row + 1;
+	        	current_row <- current_row + 1;
 	    } else {
 	        write "End of data reached";
 	    }
@@ -67,7 +56,7 @@ global {
 	matrix data <- matrix(energy_realtime);
 
 	// Vehicle-related global variables
-	int nb_electrical <- 12;
+	int nb_electrical <- 50;
 	int nb_gasoline <- 30; //28
 	int min_work_start_1 <- 8;
 	int max_work_start_1 <- 9;
@@ -143,16 +132,8 @@ global {
 	float charge_by_renew;
 	float charge_by_bess;
 	float charge_by_grid;
-	
-	float cumulative_energy_from_grid <- 0;
-	float cumulative_energy_from_bess <- 0;
-	float cumulative_energy_from_renew <- 0;
-	float cycle_count <- 0;
-	
-	float energy_from_renew <- 0;
-    float energy_from_bess <- 0;
-    float energy_from_grid <- 0;
-	
+	float charge_by_grid_C;
+	float charge_by_grid_J;
 	
 	// Renewable Energy Cost variable
 	float solar_cost;
@@ -174,6 +155,10 @@ global {
 	// BESS 
 	float bess_capacity <- 80000;
 	float bess_SoC <- 0;
+	
+	//On-Off Grid
+	bool off_grid_C <- true;
+	bool off_grid_J <- true;
 
 	init {
 		create chargingAreas from: shape_file_chargingareas with: [type:: string(read("fclass")), active_CS::int(read("active_CS")), num_CS::int(read("num_CS"))] {
@@ -232,30 +217,9 @@ global {
 		wind_capex <- wind_capex_unit * nb_wind;
 		wind_cost <- wind_capex + wind_opex;
 		
+		renew_invest_cost <- solar_cost + wind_cost;
 		payback_process <- solar_cost + wind_cost;
 	}
-	
-	reflex cal_cumulative_energy {
-		if cycle_count < 12 {
-	    	cumulative_energy_from_grid <- cumulative_energy_from_grid + energy_from_grid;
-	    	cumulative_energy_from_bess <- cumulative_energy_from_bess + energy_from_bess;
-	    	cumulative_energy_from_renew <- cumulative_energy_from_renew + energy_from_renew;
-	    	
-	    	energy_from_renew <- 0;
-    		energy_from_bess <- 0;
-    		energy_from_grid <- 0;
-	    	
-	    	cycle_count <- cycle_count + 1;     
-       } else if cycle_count = 12 {
-	        // Reset cumulative values
-	        cumulative_energy_from_grid <- 0;
-	        cumulative_energy_from_bess <- 0;
-	        cumulative_energy_from_renew <- 0;
-
-	        // Reset cycle count
-	        cycle_count <- 0;
-        }
-   }
 	
 	reflex update_bess_SoC {
         // Check if no car is charging and bess_SoC is below capacity
@@ -291,7 +255,7 @@ global {
 	}
 
 	// indicator 2: occupancy rate số trạm sạc active đang dùng/tổng số trạm (hoặc tổng số active)
-	reflex calculate_occupancy {
+	reflex calculate_energy {
 		nb_activeCS_gasoline_used <- length(car_gasoline where (each.parking_slot = "active_CS"));
 		nb_activesCS_electric_used <- length(car_electrical where (each.parking_slot = "active_CS"));
 		nb_activeCS_used <- nb_activeCS_gasoline_used + nb_activesCS_electric_used;
@@ -321,6 +285,7 @@ global {
 		monthly_cost <- 22 * daily_cost;
 		monthly_profit <- 22 * daily_profit;
 		payback_process <- payback_process - monthly_profit;
+		payback_period <- renew_invest_cost / monthly_profit;
 	}
 	
 
@@ -641,6 +606,8 @@ species car_electrical parent: car {
 	float time_to_charge <- 0 #nm;
 	
 	float energy_needed;
+    float energy_from_renew;
+    float energy_from_bess;
 
 	init {
 		if SoC <= 20 {
@@ -755,8 +722,6 @@ species car_electrical parent: car {
 	        total_energy_EVs <- total_energy_EVs + energy_from_renew; // Cập nhật tổng năng lượng sạc
 	        renew_energy_generated <- renew_energy_generated - energy_from_renew;
 	        energy_needed <- energy_needed - energy_from_renew;
-	    } else {
-	    	energy_from_renew <- 0;
 	    }
 	
 	    if energy_needed > 0 and bess_SoC > 0 {
@@ -765,18 +730,33 @@ species car_electrical parent: car {
 	        total_energy_EVs <- total_energy_EVs + energy_from_bess; // Cập nhật tổng năng lượng sạc
 	        bess_SoC <- bess_SoC - energy_from_bess;
 	        energy_needed <- energy_needed - energy_from_bess;
-	    } else {
-	    	energy_from_bess <- 0;
 	    }
-	
-	    if energy_needed > 0 {
-	    	energy_from_grid <- energy_needed;
-	        charge_by_grid <- charge_by_grid + energy_needed;
-	        total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
-	        energy_needed <- 0;
-	    } else {
-	    	energy_from_grid <- 0;
-	    }
+
+		if energy_needed > 0 {
+			if off_grid_C {
+				if not off_grid_J {
+					if parking_area = one_of(vinuni_Jparking) {
+						charge_by_grid_J <- charge_by_grid_J + energy_needed;
+						charge_by_grid <- charge_by_grid + energy_needed;
+						total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
+				        energy_needed <- 0;
+					}
+				}
+			} else {
+				if off_grid_J {
+					if parking_area = one_of(vinuni_Cparking) {
+						charge_by_grid_C <- charge_by_grid_C + energy_needed;
+						charge_by_grid <- charge_by_grid + energy_needed;
+						total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
+				        energy_needed <- 0;
+					}
+				} else {
+					charge_by_grid <- charge_by_grid + energy_needed;
+				    total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
+				    energy_needed <- 0;
+				}
+			}
+		}
 	
 	    // Sạc BESS với năng lượng dư từ nguồn tái tạo nếu không còn nhu cầu từ xe
 	    if energy_needed = 0 and renew_energy_generated > 0 {
@@ -808,6 +788,8 @@ experiment vinuni_traffic_dashboard type: gui {
 	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy";
 	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy";
 	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy";
+	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection";
+	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";
 
 	reflex save_result_avg_satisfied_percent when: (current_date.hour = 23 and current_date.minute = 55) {
 		save [nb_gasoline, nb_electrical, cycle, current_date, avg_statisfied_day] 
@@ -825,18 +807,7 @@ experiment vinuni_traffic_dashboard type: gui {
 			species gate aspect: base;
 			species car_gasoline aspect: base;
 			species car_electrical aspect: base;
-//			species bess;
-//			species solar_energy;
-//			species wind_energy;
 		}
-		
-//		display time_to_charge refresh: every(12 #cycles) {
-//		    chart "Energy Consumption" type: histogram style: stack x_serie_labels: current_date.hour {
-//		        data "Energy from grid" accumulate_values: true value: cumulative_energy_from_grid color: #blue;
-//		        data "Energy from renewable sources" accumulate_values: true value: cumulative_energy_from_renew + cumulative_energy_from_bess color: #yellow;
-//			}
-//		}
-		
 			
 		display avg_daily_charged_EVs type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55){ //plot at 23:55 each day
 			chart "Daily EV Charging Rate (%)" type: series memorize: false x_label: "Day" {
@@ -881,13 +852,17 @@ experiment vinuni_traffic_test type: gui {
 	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "No. Active Charrging Stations";
 	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations";
 	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations";
-	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies";
-	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies";
+	parameter "Adding solar panel into CS Infrastructure" var: add_solar category: "Renewable Energy";
+	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy";
+	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy";
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy";
+	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection";
+	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";
 
-	reflex save_result_avg_satisfied_percent when: (current_date.hour = 23 and current_date.minute = 55) {
-		save [nb_gasoline, nb_electrical, cycle, current_date, avg_statisfied_day] 
-		   	to: "Results/avg_percentage_statisfied.csv"  format:"csv" rewrite: (cycle = 287) ? true : false;
-	}
+//	reflex save_result_avg_satisfied_percent when: (current_date.hour = 23 and current_date.minute = 55) {
+//		save [nb_gasoline, nb_electrical, cycle, current_date, avg_statisfied_day] 
+//		   	to: "Results/avg_percentage_statisfied.csv"  format:"csv" rewrite: (cycle = 287) ? true : false;
+//	}
 
 	output synchronized: true {
 		display vinuni_display type: 2d {
@@ -900,45 +875,11 @@ experiment vinuni_traffic_test type: gui {
 			species gate aspect: base;
 			species car_gasoline aspect: base;
 			species car_electrical aspect: base;
-		}
-
-		display time_to_charge refresh: every(12 #cycles) {
-			chart "Number of charged vehicle" type: histogram style: stack  {
-				data "Charged & Satisfied" accumulate_values: true value: nbEV_charged_statisfied color: #blue;
-				data "Not Charged & Unsatisfied" accumulate_values: true value: nbEV_uncharged_unsatisfied color: #yellow;
-			}
-		}
-
-		display percentage_statisfied type: 2d {
-			chart "Indicator 1: EV Charging Rate (%)" type: series memorize: false x_serie_labels: current_date.hour {
-				data "Percentage of EV satisfied" value: 100*percentage_statisfied color: #blue marker: false style: line;
-			}
-		}
-
-		display occupancy_rate refresh: every(#cycle) type: 2d {
-			chart "Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0.5, 0} {
-				data "Being used" value: occupancy_rate color: #magenta;
-				data "Available" value: (1 - occupancy_rate) color: #blue;
-			}
-
-			chart "Useful Occupancy Rate" type: pie style: exploded size: {0.5, 1} position: {0, 0} {
-				data "Being used" value: useful_occupancy_rate_1 color: #magenta;
-				data "Available" value: (1 - useful_occupancy_rate_1) color: #blue;
-			}
 
 		}
-
-//		display series type: 2d {
-//			chart "Number of Active Charging Stations Available" type: series x_label: "#points to draw at each step" memorize: false x_serie_labels: current_date.hour {
-//				data "Slots at C_parking" value: chargingAreas[0].active_CS color: #blue marker: false style: line;
-//				data "Slots at J_parking" value: chargingAreas[1].active_CS color: #red marker: false style: line;
-//			}
-//		}
 	}
-	
 }
 
-//Experiment to show how to make multi simulations
 experiment alter_1_indi_1_effectiveness type: gui {
 	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 30;
 	init {
@@ -974,13 +915,6 @@ experiment alter2_effectiveness type: gui {
 				}
 			}
 		}
-//		display Comparison2 refresh: every(288 #cycle){
-//			chart "Avg Percent of charged EV" type: series {
-//				loop m over: [vinuniCS_model[2],vinuniCS_model[3]]  {
-//					data "Case " + int(m) + ": policy 1: " + m.policy_prohibit_parking + ", policy 2: " + m.policy_force_moving value: 100*m.avg_statisfied_day marker: true style: line thickness: 3;
-//				}
-//			}
-//		}
 	}
 	reflex column_name when: (cycle = 286){
 		save ["Cycle", "Current date", "Case 0", "Case 1", "Case 2", "Case 3"] 
