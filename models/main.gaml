@@ -1,3 +1,4 @@
+
 /**
 * Name: main
 * Based on the internal empty template. 
@@ -26,40 +27,8 @@ global {
 	float step <- 5 #mn;
 	date starting_date <- date("2024-01-01 00:00:00");
 	
-	file energy_realtime <- csv_file("../includes/average_by_time_data.csv",",");
+//	file energy_realtime <- csv_file("../includes/average_by_time_data.csv",",");
 //	file energy_realtime <- csv_file("../includes/energy_data.csv",",");
-	
-	init {
-		//convert the file into a matrix
-		matrix data <- matrix(energy_realtime);
-		//loop on the matrix rows (skip the first header line)
-		loop i from: 1 to: data.rows -1{
-			//loop on the matrix columns
-			loop j from: 0 to: data.columns -1{
-				write "data rows:"+ i +" colums:" + j + " = " + data[j,i];
-			}	
-		}		
-	}
-	
-	reflex update_values_from_csv {
-    // Kiểm tra xem current_row có nằm trong phạm vi ma trận không
-	    if (current_row < data.rows) {
-	        // Lặp qua tất cả các cá thể của solar_energy và cập nhật giá trị
-	        loop solar over: solar_energy {
-				solar.air_temp <- data[0, current_row];	
-				solar.solar_ghi <- data[1, current_row];	
-			}
-	        // Lặp qua tất cả các cá thể của wind_energy và cập nhật giá trị
-	        loop wind over: wind_energy {
-				wind.wind_speed <- data[2, current_row];	
-			}
-	        
-	        // Cập nhật chỉ số dòng cho lần tiếp theo
-	        current_row <- current_row + 1;
-	    } else {
-	        write "End of data reached";
-	    }
-	}
 	
 	init {
 		create chargingAreas from: shape_file_chargingareas with: [type:: string(read("fclass")), active_CS::int(read("active_CS")), num_CS::int(read("num_CS"))] {
@@ -149,9 +118,8 @@ global {
 	
 	// Renewable Energy Cost variable
 	float payback_period;
-	int payback_threshold <- 36;
+	int payback_threshold <- 60;
 	float payback_period_norm;
-
 
 //indicator 1: average percent of daily charged EV
 	reflex calculate_percentage_statisfied {
@@ -198,7 +166,7 @@ global {
 		if payback_period <= payback_threshold {
 			payback_period_norm <- payback_period / payback_threshold;
 		} else {
-	        payback_period_norm <- exp(-payback_period / payback_threshold);
+	        payback_period_norm <- exp((payback_threshold - payback_period) / payback_threshold);
 		}
 	}
 
@@ -215,7 +183,7 @@ global {
 		charge_by_grid <- 0.0;
 	}
 	
-	float metric <-0;
+	float metric <-0.0;
 	reflex metric when: (current_date.hour = 23 and current_date.minute = 50) {
 		metric <- avg_statisfied_day + 0.8 * self_sufficiency + payback_period_norm;
 	}
@@ -240,8 +208,8 @@ experiment vinuni_traffic_dashboard type: gui {
 	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy";
 	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy";
 	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy";
-	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection";
-	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";
+//	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection";
+//	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";
 
 	output synchronized: true {
 		display vinuni_display type: 2d {
@@ -293,22 +261,30 @@ experiment vinuni_traffic_dashboard type: gui {
 }
 
 experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 10 {
-	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 10;
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 200;
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:6 max:30 step:3;
-	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 10;
-	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- true;
-	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- false;
-	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" min: 30 max: 210 step: 30;
-//	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" min: 2 max: 6 step: 2;
-	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy" <- 36;
-	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection" <- false;
-	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection" <- false;
 	
-	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- false;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:40 max:50 step:5;
+	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
+	
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
+	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "J_parking" <- 4;
+	
+	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- true;
+	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" min: 200 max: 900 step: 100;
+	
+	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- false;
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" <- 0;
+//	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" min: 2 max: 10 step: 2;
+
+	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy" <- 60;
+//	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection" <- false;
+//	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection" <- false;
+	
+	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- true;
 	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" <- false;
 
-//	method exploration;	
+	method exploration;	
 
 //	method hill_climbing maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm; 
     
@@ -330,19 +306,19 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 //         pop_dim: 5 crossover_prob: 0.7 mutation_prob: 0.1 
 //         nb_prelim_gen: 1 max_gen: 20;
 
-	method pso num_particles: 3 weight_inertia:0.7 weight_cognitive: 1.5 weight_social: 1.5  iter_max: 5  maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm; 
+//	method pso num_particles: 3 weight_inertia:0.7 weight_cognitive: 1.5 weight_social: 1.5  iter_max: 5  maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm; 
         
 	reflex save_results_explore {
 		ask simulations {
-			save [int(self), self.nb_electrical, self.nb_activeCS_Cparking,
-					self. nb_solar, self.nb_wind,self.off_grid_C, self.off_grid_J,
+			save [int(self), self.nb_electrical, self.nb_activeCS_Cparking, self.nb_activeCS_Cparking_fast,
+					self. nb_solar, self.nb_wind,
 					self.avg_statisfied_day, self.monthly_profit,
 					self.monthly_energy_consumption, self.monthly_renew_charge, 
 					self.self_consumption, self.self_sufficiency, 
 					self.payback_period, self.payback_period_norm,
-					self.off_grid_C, self.off_grid_J, self.metric
+					self.metric
 			]
-		   		to: "Results_opt/pso_EV10.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		   		to: "Results_new/renew_batch_EV200_v4.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }

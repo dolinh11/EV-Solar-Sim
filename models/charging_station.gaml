@@ -10,10 +10,10 @@ model chargingstation
 
 global {
 	// Chargingn station-related global variables
-	int nb_activeCS_Cparking <- 7;
-	int nb_activeCS_Jparking <- 6;
-	int nb_activeCS_Cparking_fast <- 0;
-	int nb_activeCS_Jparking_fast <- 2;
+	int nb_activeCS_Cparking <- 20;
+	int nb_activeCS_Jparking <- 15;
+	int nb_activeCS_Cparking_fast <- 2;
+	int nb_activeCS_Jparking_fast <- 4;
 	int nb_activeCS_gasoline_used;
 	int nb_activesCS_electric_used;
 	int nb_activesCS_electric_charging;

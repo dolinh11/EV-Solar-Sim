@@ -20,22 +20,22 @@ global {
 	matrix data <- matrix(energy_realtime);
 	
 	// Renewable Energy Cost
-	float solar_capex_unit <- 18000000; // 18tr VND/ 1kWp
-	float solar_opex <- 600000; // 600k
+	float solar_capex_unit <- 18000000.0; // 18tr VND/ 1kWp
+	float solar_opex <- 600000.0; // 600k
 	float solar_capex;
 	
-	float wind_capex_unit <- 76000000; //  76tr VND/ 3kWh
-	float wind_opex <- 1200000; // 1tr2
+	float wind_capex_unit <- 76000000.0; //  76tr VND/ 3kWh
+	float wind_opex <- 1200000.0; // 1tr2
 	float wind_capex;
 	
 	float solar_cost;
 	float wind_cost;
 	float renew_invest_cost;
 	float payback_process;
-	
+		
 	init {
 		//convert the file into a matrix
-		matrix data <- matrix(energy_realtime);
+//		matrix data <- matrix(energy_realtime);
 		//loop on the matrix rows (skip the first header line)
 		loop i from: 1 to: data.rows -1{
 			//loop on the matrix columns
@@ -76,7 +76,7 @@ global {
 	
 	// Energy-related variables
 	bool add_solar <- true; 
-	int nb_solar <- 30;
+	int nb_solar <- 100;
 	bool add_wind <- true;
 	int nb_wind <- 4;
 	int nb_bess <- 1;
@@ -91,8 +91,8 @@ global {
 	float wind_energy_generated;
 	
 	// BESS 
-	float bess_capacity <- 80000;
-	float bess_SoC <- 0;
+	float bess_capacity <- 80000.0;
+	float bess_SoC <- 0.0;
 	
 	//On-Off Grid
 	bool off_grid_C <- false;
@@ -124,7 +124,7 @@ species wind_energy {
 	float v_cut_in <- 3.5 #m/#s;
 	float v_cut_out <- 45 #m/#s;
 	float v_r <- 12 #m/#s; 
-	float P_rated <- 250;
+	float P_rated <- 250.0;
 	
 	init {
 	}
@@ -135,7 +135,7 @@ species wind_energy {
 		} else if wind_speed >= v_r and wind_speed <= v_cut_out {
 			wind_energy_generated <- nb_wind * P_rated;
 		} else {
-			wind_energy_generated <- 0;
+			wind_energy_generated <- 0.0;
 		}
 	}
 }

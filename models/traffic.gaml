@@ -13,8 +13,8 @@ import "energy.gaml"
 
 global {
 	// Vehicle-related global variables
-	int nb_electrical <- 10;
-	int nb_gasoline <- 30; //28
+	int nb_electrical <- 30;
+	int nb_gasoline <- 30;
 	int min_work_start_1 <- 8;
 	int max_work_start_1 <- 9;
 	int min_work_start_2 <- 12;
@@ -237,7 +237,7 @@ species car_electrical parent: car {
 
 	init {
 		if SoC <= 20 {
-			parking_area <- one_of(vinuni_Jparking);
+//			parking_area <- one_of(vinuni_Jparking);
 			priority_fast <- true;
 		}
 		EV_model <- one_of(EV_models_at_vinuni);
@@ -280,8 +280,7 @@ species car_electrical parent: car {
 		} }
 
 	action check_slot {
-		if parking_area = one_of(vinuni_Jparking) and priority_fast 
-		and parking_area.activeCS_fast > 0 {
+		if priority_fast and parking_area.activeCS_fast > 0 {
 			charging_mode <- "fast";
 			parking_slot <- "active_CS";
 		} else {
@@ -365,7 +364,7 @@ species car_electrical parent: car {
 						charge_by_grid_J <- charge_by_grid_J + energy_needed;
 						charge_by_grid <- charge_by_grid + energy_needed;
 						total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
-				        energy_needed <- 0;
+				        energy_needed <- 0.0;
 					}
 				}
 			} else {
@@ -374,12 +373,12 @@ species car_electrical parent: car {
 						charge_by_grid_C <- charge_by_grid_C + energy_needed;
 						charge_by_grid <- charge_by_grid + energy_needed;
 						total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
-				        energy_needed <- 0;
+				        energy_needed <- 0.0;
 					}
 				} else {
 					charge_by_grid <- charge_by_grid + energy_needed;
 				    total_energy_EVs <- total_energy_EVs + energy_needed; // Cập nhật tổng năng lượng sạc
-				    energy_needed <- 0;
+				    energy_needed <- 0.0;
 				}
 			}
 		}
@@ -388,7 +387,7 @@ species car_electrical parent: car {
 	    if energy_needed = 0 and renew_energy_generated > 0 {
 	        bess_SoC <- bess_SoC + renew_energy_generated;
 	        bess_SoC <- min(bess_SoC, bess_capacity); // Đảm bảo không vượt quá dung lượng BESS
-	        renew_energy_generated <- 0;
+	        renew_energy_generated <- 0.0;
 	    }
 	
 	    // Kiểm tra nếu sạc xong hoặc không còn trong khu vực đỗ xe
