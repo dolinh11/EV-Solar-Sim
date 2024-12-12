@@ -261,10 +261,10 @@ experiment vinuni_traffic_dashboard type: gui {
 }
 
 experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 10 {
-	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 200;
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 150;
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
 	
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:40 max:50 step:5;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:20 max:50 step:5;
 	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
 	
 	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
@@ -284,29 +284,29 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- true;
 	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" <- false;
 
-	method exploration;	
+//	method exploration;	
 
-//	method hill_climbing maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm; 
+//	method hill_climbing maximize: metric;
     
 //    method annealing 
 //        temp_init: 100  temp_end: 1 
 //        temp_decrease: 0.5 nb_iter_cst_temp: 5 
-//        maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm;
+//        maximize: metric;
     
-//    method tabu 
-//        iter_max: 50 tabu_list_size: 5 
-//        maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm;
+    method tabu 
+        iter_max: 50 tabu_list_size: 5 
+        maximize: metric;
         
 //    method reactive_tabu 
 //        iter_max: 50 tabu_list_size_init: 5 tabu_list_size_min: 2 tabu_list_size_max: 10 
 //        nb_tests_wthout_col_max: 20 cycle_size_min: 2 cycle_size_max: 20 
-//        maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm;
+//        maximize: metric;
 	
-//	 method genetic maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm 
+//	 method genetic maximize: metric 
 //         pop_dim: 5 crossover_prob: 0.7 mutation_prob: 0.1 
 //         nb_prelim_gen: 1 max_gen: 20;
 
-//	method pso num_particles: 3 weight_inertia:0.7 weight_cognitive: 1.5 weight_social: 1.5  iter_max: 5  maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm; 
+//	method pso num_particles: 3 weight_inertia:0.7 weight_cognitive: 1.5 weight_social: 1.5  iter_max: 5  maximize: metric; 
         
 	reflex save_results_explore {
 		ask simulations {
@@ -318,7 +318,7 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 					self.payback_period, self.payback_period_norm,
 					self.metric
 			]
-		   		to: "Results_new/renew_batch_EV200_v4.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		   		to: "Results_opt_new/renew_tabu_EV150.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }
