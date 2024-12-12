@@ -298,7 +298,7 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
         maximize: metric;
         
 //    method reactive_tabu 
-//        iter_max: 50 tabu_list_size_init: 5 tabu_list_size_min: 2 tabu_list_size_max: 10 
+//        iter_max: 50 tabu_list_size_init: 5 tabu_list_size_min: 2 tabu_list_size_max: 10
 //        nb_tests_wthout_col_max: 20 cycle_size_min: 2 cycle_size_max: 20 
 //        maximize: metric;
 	
@@ -318,7 +318,8 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 					self.payback_period, self.payback_period_norm,
 					self.metric
 			]
-		   		to: "Results_opt_new/renew_tabu_EV150.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+			
+		   		to: "Results_opt_new/renew_tabu_EV200.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }
