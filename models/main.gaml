@@ -209,8 +209,8 @@ experiment vinuni_traffic_dashboard type: gui {
 	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy";
 	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy";
 //	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection";
-//	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";
-
+//	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";	
+	
 	output synchronized: true {
 		display vinuni_display type: 2d {
 			species vinuniBound aspect: base;
@@ -255,17 +255,16 @@ experiment vinuni_traffic_dashboard type: gui {
 				data "self-consumpation ratio" value: self_consumption color: #red marker: true style: line;
 				data "self-sufficiency ratio" value: self_sufficiency color: #green marker: true style: line;
 			}
-		}
-		
+		}		
 	}
 }
 
-experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 10 {
-	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 150;
+experiment batch_experiment type: batch keep_seed: true until: (cycle=287) repeat: 10 parallel: 10 {
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 200;
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
 	
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:20 max:50 step:5;
-	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" <- 20;// min:20 max:50 step:5;
+	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" <- 10; //min:2 max:10 step:2;
 	
 	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
 	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "J_parking" <- 4;
@@ -273,9 +272,8 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- true;
 	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" min: 200 max: 900 step: 100;
 	
-	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- false;
-	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" <- 0;
-//	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" min: 2 max: 10 step: 2;
+	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- true;
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" min: 2 max: 10 step: 2;
 
 	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy" <- 60;
 //	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection" <- false;
@@ -284,7 +282,7 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- true;
 	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" <- false;
 
-//	method exploration;	
+	method exploration;	
 
 //	method hill_climbing maximize: metric;
     
@@ -293,10 +291,10 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 //        temp_decrease: 0.5 nb_iter_cst_temp: 5 
 //        maximize: metric;
     
-    method tabu 
-        iter_max: 50 tabu_list_size: 5 
-        maximize: metric;
-        
+//    method tabu 
+//        iter_max: 50 tabu_list_size: 5 
+//        maximize: metric;
+
 //    method reactive_tabu 
 //        iter_max: 50 tabu_list_size_init: 5 tabu_list_size_min: 2 tabu_list_size_max: 10
 //        nb_tests_wthout_col_max: 20 cycle_size_min: 2 cycle_size_max: 20 
@@ -319,7 +317,7 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 					self.metric
 			]
 			
-		   		to: "Results_opt_new/renew_tabu_EV200.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		   		to: "Results_new/renew_wind_autumn_EV200.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }

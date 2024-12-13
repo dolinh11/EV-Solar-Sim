@@ -12,8 +12,13 @@ model energy
 
 global {
 	
-	file energy_realtime <- csv_file("../includes/average_by_time_data.csv",",");
+//	file energy_realtime <- csv_file("../includes/average_by_time_data.csv",",");
 //	file energy_realtime <- csv_file("../includes/energy_data.csv",",");
+
+//	file energy_realtime <- csv_file("../includes/average_by_spring.csv",",");
+//	file energy_realtime <- csv_file("../includes/average_by_summer.csv",",");
+	file energy_realtime <- csv_file("../includes/average_by_autumn.csv",",");
+//	file energy_realtime <- csv_file("../includes/average_by_winter.csv",",");
 
 	// Energy Real-time Data
 	int current_row <- 0;
