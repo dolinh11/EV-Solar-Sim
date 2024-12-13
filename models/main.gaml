@@ -11,7 +11,6 @@ model main
 
 import "traffic.gaml"
 
-
 /* Insert your model definition here */
 
 global {
@@ -31,6 +30,7 @@ global {
 //	file energy_realtime <- csv_file("../includes/energy_data.csv",",");
 	
 	init {
+//		seed <- 32.0;
 		create chargingAreas from: shape_file_chargingareas with: [type:: string(read("fclass")), active_CS::int(read("active_CS")), num_CS::int(read("num_CS"))] {
 			if type = "C_parking" {
 				chargingAreas_color <- #yellow;
@@ -47,7 +47,6 @@ global {
 			if state_type = "close" {
 				gate_color <- #navy;
 			}
-
 		}
 
 		create vinuniBound from: shape_file_vinuni_bounds;
@@ -210,7 +209,7 @@ experiment vinuni_traffic_dashboard type: gui {
 	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy";
 //	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection";
 //	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";
-
+	
 	output synchronized: true {
 		display vinuni_display type: 2d {
 			species vinuniBound aspect: base;
@@ -260,11 +259,20 @@ experiment vinuni_traffic_dashboard type: gui {
 	}
 }
 
-experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 10 {
-	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 150;
+experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true until: (cycle=287) {
+	init {
+	//Make grids schedule their agents in parallel
+	gama.pref_parallel_grids <- false;
+	//Make experiments run simulations in parallel
+	gama.pref_parallel_simulations <- true;
+	//Make species schedule their agents in parallel
+	gama.pref_parallel_species <- false;
+  }
+		
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 50;
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
 	
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:20 max:50 step:5;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:40 max:50 step:5;
 	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
 	
 	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
@@ -286,25 +294,25 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 
 //	method exploration;	
 
-//	method hill_climbing maximize: metric;
+//	method hill_climbing maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm; 
     
 //    method annealing 
 //        temp_init: 100  temp_end: 1 
 //        temp_decrease: 0.5 nb_iter_cst_temp: 5 
-//        maximize: metric;
+//        maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm;
     
-    method tabu 
-        iter_max: 50 tabu_list_size: 5 
-        maximize: metric;
+//    method tabu 
+//        iter_max: 50 tabu_list_size: 5 
+//        maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm;
         
 //    method reactive_tabu 
 //        iter_max: 50 tabu_list_size_init: 5 tabu_list_size_min: 2 tabu_list_size_max: 10
 //        nb_tests_wthout_col_max: 20 cycle_size_min: 2 cycle_size_max: 20 
-//        maximize: metric;
+//        maximize: avg_statisfied_day + 0.8*self_sufficiency + payback_period_norm;
 	
-//	 method genetic maximize: metric 
-//         pop_dim: 5 crossover_prob: 0.7 mutation_prob: 0.1 
-//         nb_prelim_gen: 1 max_gen: 20;
+	 method genetic maximize: metric 
+         pop_dim: 5 crossover_prob: 0.7 mutation_prob: 0.1 
+         nb_prelim_gen: 1 max_gen: 20;
 
 //	method pso num_particles: 3 weight_inertia:0.7 weight_cognitive: 1.5 weight_social: 1.5  iter_max: 5  maximize: metric; 
         
@@ -318,21 +326,31 @@ experiment batch_experiment type: batch until: (cycle=287) repeat: 10 parallel: 
 					self.payback_period, self.payback_period_norm,
 					self.metric
 			]
-			
-		   		to: "Results_opt_new/renew_tabu_EV200.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		   		to: "Results_opt_new/renew_genetic_50_test2.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }
 
 
-experiment sobol type: batch until:(cycle=287) repeat: 30 parallel: 20 {
-	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:10 max:50 step:2;
+experiment Sobol type: batch until:(current_date.hour = 23 and current_date.minute = 55) repeat: 20 parallel: 20 {
+parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:50 max:200 step:50;
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" <- 6;
-	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 6;
-	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" min:false max:true;
-	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" min:false max:true;
-	method sobol outputs:["avg_statisfied_day","monthly_energy_consumption","monthly_profit"] sample:1000 report:"Results/sobol_alter2.txt" results:"Results/exploration_alter2.csv";
+	
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:20 max:50 step:5;
+	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
+	
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
+	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "J_parking" <- 4;
+	
+	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- true;
+	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" min: 200 max: 900 step: 100;
+	
+	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- false;
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" <- 0;
+
+	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy" <- 60;
+
+	method sobol outputs:["avg_statisfied_day","self_consumption","self_sufficiency", "payback_period_norm", "metric"] sample:1000 report:"Results_new/sobol.txt" results:"Results_new/sobol_raw.csv";
 }
 
 experiment alter_1_indi_1_effectiveness type: gui {
