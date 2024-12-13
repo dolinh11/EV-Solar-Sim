@@ -13,7 +13,7 @@ import "energy.gaml"
 
 global {
 	// Vehicle-related global variables
-	int nb_electrical <- 30;
+	int nb_electrical <- 50;
 	int nb_gasoline <- 30;
 	int min_work_start_1 <- 8;
 	int max_work_start_1 <- 9;
