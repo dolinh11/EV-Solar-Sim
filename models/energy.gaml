@@ -14,7 +14,8 @@ global {
 	
 	file energy_realtime <- csv_file("../includes/weather/average_time_data.csv",",");
 //	file energy_realtime <- csv_file("../includes/weather/energy_data.csv",",");
-
+//	file energy_realtime <- csv_file("../includes/weather/avg_month.csv",",");
+	
 //	file energy_realtime <- csv_file("../includes/weather/average_Q1.csv",",");
 //	file energy_realtime <- csv_file("../includes/weather/average_Q2.csv",",");
 //	file energy_realtime <- csv_file("../includes/weather/average_Q3.csv",",");
@@ -82,8 +83,8 @@ global {
 	// Energy-related variables
 	bool add_solar <- true; 
 	int nb_solar <- 100;
-	bool add_wind <- true;
-	int nb_wind <- 4;
+	bool add_wind <- false;
+	int nb_wind <- 0;
 	int nb_bess <- 1;
 
 	// total renewable energy generate

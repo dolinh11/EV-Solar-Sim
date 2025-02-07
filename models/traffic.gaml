@@ -25,8 +25,10 @@ global {
 	float max_speed <- 10 #km / #h;
 	
 	//Polices
-	bool policy_prohibit_parking <- false; //prohibit gasoline cars from parking in active_CS slot
-	bool policy_force_moving <- false; //force EVs to move to inactive parking slot when fully charged
+	bool policy_ban_gasoline <- false; //Ban gasoline vehicles from active charging stations
+	bool policy_idle_fee <- false; //Charge idle fees of 1,000 VND/min after 30 minutes of full charge
+	bool policy_relocation <- false; //Relocate fully charged EVs to inactive charging stations
+	bool policy_notification <- false; //Notify users when nearby charging spots are available.
 
 	// Energy consumption 
 	float charge_by_renew;
@@ -38,6 +40,8 @@ global {
 	// Energy Consumption 
 	float total_energy_EVs <- 0.0;
 	
+	float total_idle_time <- 0.0;
+	bool slot_noti <- false;
 	
 	reflex update_bess_SoC {
         // Check if no car is charging and bess_SoC is below capacity
@@ -115,10 +119,9 @@ species car skills: [moving] {
 			if charging_mode = "fast" {
 				parking_area.activeCS_fast <- parking_area.activeCS_fast - 1;
 			}
-
 		}
-
 		parking_area.num_CS <- parking_area.num_CS - 1;
+//		write name + ' at ' + parking_slot;
 	}
 
 	action leaving {
@@ -190,7 +193,7 @@ species car_gasoline parent: car {
 	rgb color <- #red;
 	float parking_active_prob; //probability of randomly parked in an active_CS slot
 	action assign_slot {
-		if not policy_prohibit_parking {
+		if not policy_ban_gasoline {
 			if parking_area.active_CS > 0 and parking_area.num_CS > 0 {
 				parking_active_prob <- parking_area.active_CS / parking_area.num_CS;
 				parking_slot <- flip(parking_active_prob) ? "active_CS" : "inactive_CS";
@@ -198,7 +201,7 @@ species car_gasoline parent: car {
 				parking_slot <- "inactive_CS";
 			}
 
-		} else if policy_prohibit_parking {
+		} else if policy_ban_gasoline {
 			parking_slot <- "inactive_CS";
 		}
 
@@ -216,6 +219,8 @@ species car_electrical parent: car {
 	bool done_charging <- false;
 	bool priority_destination <- flip(0.9) ? true : false;
 	bool move_slot <- false;
+	bool charged_idle_fee <- false;
+	float idle_time <- 0 #nm;
 
 	//Check this probability again
 	bool priority_fast <- flip(0.4) ? true : false;
@@ -243,17 +248,6 @@ species car_electrical parent: car {
 		EV_model <- one_of(EV_models_at_vinuni);
 		chargingRate_slow <- model_chargingRate_slow[EV_model];
 		chargingRate_fast <- model_chargingRate_fast[EV_model];
-	}
-
-	action change_slot {
-		if policy_force_moving {
-			parking_slot <- "inactive_CS";
-			parking_area.active_CS <- parking_area.active_CS + 1;
-			if charging_mode = "fast" {
-				parking_area.activeCS_fast <- parking_area.activeCS_fast + 1;
-			}
-		}
-		move_slot <- true;
 	}
 	
 	action assign_slot_randomly {
@@ -283,10 +277,12 @@ species car_electrical parent: car {
 		if priority_fast and parking_area.activeCS_fast > 0 {
 			charging_mode <- "fast";
 			parking_slot <- "active_CS";
+			satisfied <- true;
 		} else {
 			charging_mode <- "slow";
 			if parking_area.active_CS > 0 {
 				parking_slot <- "active_CS";
+				satisfied <- true;
 			} else if parking_area.active_CS = 0 and num_checkSlot = 1 {
 				parking_slot <- "inactive_CS";
 				satisfied <- false;
@@ -300,7 +296,8 @@ species car_electrical parent: car {
 					} else {
 						do change_parkingArea;
 					}
-				} } } }
+				} } }
+		}
 
 	action change_parkingArea {
 		num_checkSlot <- num_checkSlot + 1;
@@ -320,6 +317,7 @@ species car_electrical parent: car {
 		satisfied <- true;
 		move_slot <- false;
 		num_checkSlot <- 0;
+		idle_time <- 0 #mn;
 	}
 
 	reflex try_to_charge when: moving_obj = "working" and not done_charging {
@@ -396,9 +394,61 @@ species car_electrical parent: car {
 	        is_charging <- false;
 	    }
 	}
+	
+	action change_slot {
+		parking_slot <- "inactive_CS";
+		parking_area.active_CS <- parking_area.active_CS + 1;
+		if charging_mode = "fast" {
+			parking_area.activeCS_fast <- parking_area.activeCS_fast + 1;
+		}
+		parking_area.num_CS <- parking_area.num_CS + 1;	
+//		write name + ' done charge, change to ' + parking_slot;
+		move_slot <- true;
+		
+		if policy_notification {
+			slot_noti <- true;
+		}
+	}
+	
+	action idle_fee {
+		idle_time <- idle_time + 5;
+		if idle_time > 30 {
+			total_idle_time <- total_idle_time + 5;
+		}
+		if idle_time > 120 {
+			do change_slot;
+		}
+	}
 
-	reflex move_to_inactive when: done_charging and in_parkingArea and not move_slot {
-		do change_slot;
+	reflex full_battery when: done_charging and in_parkingArea and not move_slot {
+		if policy_relocation {
+			do change_slot;
+		} else {
+			if policy_idle_fee {
+				if flip(0.65) {
+					do change_slot;
+				} else {
+					charged_idle_fee <- true;
+					do idle_fee;
+				}
+			} else {
+				move_slot <- true;
+			}	
+		}
+	}
+	
+	reflex parking_again_to_charge when: moving_obj = "working" and not is_charging and not done_charging and slot_noti {
+		num_checkSlot <- 0;
+		do assign_slot;
+		if parking_slot = "active_CS" {
+//			write name + ' change to ' + parking_slot;
+			parking_area.active_CS <- parking_area.active_CS - 1;
+			if charging_mode = "fast" {
+				parking_area.activeCS_fast <- parking_area.activeCS_fast - 1;
+			}
+			slot_noti <- false;
+		}
+		parking_area.num_CS <- parking_area.num_CS - 1;
 	}
 }
 

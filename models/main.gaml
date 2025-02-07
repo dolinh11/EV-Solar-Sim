@@ -40,6 +40,8 @@ global {
 			chargingAreas[1].active_CS <- nb_activeCS_Jparking;
 			chargingAreas[0].activeCS_fast <- nb_activeCS_Cparking_fast;
 			chargingAreas[1].activeCS_fast <- nb_activeCS_Jparking_fast;
+			chargingAreas[0].num_CS <- max(chargingAreas[0].num_CS, nb_activeCS_Cparking + nb_activeCS_Cparking_fast);
+			chargingAreas[1].num_CS <- max(chargingAreas[1].num_CS, nb_activeCS_Jparking + nb_activeCS_Jparking_fast);
 		}
 
 		create residential from: shape_file_residential;
@@ -119,6 +121,7 @@ global {
 	float payback_period;
 	int payback_threshold <- 60;
 	float payback_period_norm;
+ 
 
 //indicator 1: average percent of daily charged EV
 	reflex calculate_percentage_statisfied {
@@ -143,11 +146,12 @@ global {
 
 		total_statisfied_day <- 0.0;
 		total_statisfied_cycle <- 0;
+		slot_noti <- false;
 	}
 
 	//indicator 2: monthly revenue and profit
 	reflex calculate_daily_profit when: (current_date.hour = 23 and current_date.minute = 45) {
-		daily_revenue <- (total_energy_EVs * 3355) / 1000;
+		daily_revenue <- ((total_energy_EVs * 3355) + (total_idle_time * 1000)) / 1000;
 		daily_cost <- (charge_by_grid * 2049 + (nb_activeCS_Cparking + nb_activeCS_Jparking) * 500000 / 30) / 1000;
 		daily_profit <- daily_revenue - daily_cost;
 		daily_renew_charge <- charge_by_bess + charge_by_renew;
@@ -195,7 +199,7 @@ global {
 	}
 }
 
-experiment vinuni_traffic_dashboard type: gui {
+experiment traffic_dashboard type: gui {
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car";
 	parameter "Number of electric car agents" var: nb_electrical category: "No. Car";
 	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations";
@@ -207,6 +211,11 @@ experiment vinuni_traffic_dashboard type: gui {
 	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy";
 	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy";
 	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy";
+	parameter "Policy 1: Ban gasoline vehicles from active charging stations" var: policy_ban_gasoline category: "Policies";
+	parameter "Policy 2: Charge idle fees of 1,000 VND/min after 30 minutes of full charge" var: policy_idle_fee category: "Policies";
+	parameter "Policy 3: Relocate fully charged EVs to inactive charging stations" var: policy_relocation category: "Policies";
+	parameter "Policy 4: Notify users when nearby charging spots are available" var: policy_notification category: "Policies";
+	
 //	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection";
 //	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection";	
 	
@@ -288,8 +297,11 @@ experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true
 //	parameter "Disconnecting with Grid at Building C" var: off_grid_C category: "Grid Connection" <- false;
 //	parameter "Disconnecting with Grid at Building J" var: off_grid_J category: "Grid Connection" <- false;
 	
-	parameter "Implement a policy prohibiting gasoline cars from parking in active_CS" var: policy_prohibit_parking category: "Policies" <- true;
-	parameter "Implement a policy forcing EVs to move to inactive parking slot when fully charged" var: policy_force_moving category: "Policies" <- false;
+	parameter "Policy 1: Ban gasoline vehicles from active charging stations" var: policy_ban_gasoline category: "Policies" <- true;
+	parameter "Policy 2: Charge idle fees of 1,000 VND/min after 30 minutes of full charge" var: policy_idle_fee category: "Policies" <- false;
+	parameter "Policy 3: Relocate fully charged EVs to inactive charging stations" var: policy_relocation category: "Policies" <- false;
+	parameter "Policy 4: Notify users when nearby charging spots are available" var: policy_notification category: "Policies" <- false;
+	
 
 //	method exploration;	
 
@@ -331,27 +343,6 @@ experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true
 }
 
 
-experiment Sobol type: batch until:(current_date.hour = 23 and current_date.minute = 55) repeat: 20 parallel: 20 {
-parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:50 max:200 step:50;
-	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
-	
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:20 max:50 step:5;
-	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
-	
-	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
-	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "J_parking" <- 4;
-	
-	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- true;
-	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" min: 200 max: 900 step: 100;
-	
-	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- false;
-	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" <- 0;
-
-	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy" <- 60;
-
-	method sobol outputs:["avg_statisfied_day","self_consumption","self_sufficiency", "payback_period_norm", "metric"] sample:1000 report:"Results_new/sobol.txt" results:"Results_new/sobol_raw.csv";
-}
-
 //experiment alter_1_indi_1_effectiveness type: gui {
 //	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 30;
 //	init {
@@ -371,35 +362,109 @@ parameter "Number of electrical car agents" var: nb_electrical category: "Electr
 //	}		
 //}
 
-//experiment alter2_effectiveness type: gui {
-//	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 30;
+//experiment gui_policy type: gui {
+//	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 200;
+//	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car" <- 30;
+//
+//	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations" <- 20;
+//	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "No. Active Charrging Stations" <- 15;
+//	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations" <- 4;
+//	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations" <- 4;
+//	
+//	parameter "Adding solar panel into CS Infrastructure" var: add_solar category: "Renewable Energy" <- false;
+//	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy" <- false;
+//	
 //	init {
-//		create simulation with: [policy_prohibit_parking :: true, policy_force_moving :: false];
-//		create simulation with: [policy_prohibit_parking :: false, policy_force_moving :: true];
-//		create simulation with: [policy_prohibit_parking :: true, policy_force_moving :: true];
-//		//create vinuniCS_model with: [nb_electrical::30, nb_gasoline::28];
+//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: false, policy_relocation :: false, policy_notification :: false];
+//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: true, policy_relocation :: false, policy_notification :: false];
+//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: true, policy_relocation :: true, policy_notification :: false];
+//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: true, policy_relocation :: true, policy_notification :: true];
 //	}
+//	
+//	
 //	permanent {
-//		display Comparison refresh: every(288 #cycle) {
+//		display Comparison refresh: (current_date.hour = 23 and current_date.minute = 55) {
 //			chart "Avg Percent of charged EV" type: series {
 //				loop s over: simulations  {
-//					data "Case " + int(s) + ": policy 1: " + s.policy_prohibit_parking + ", policy 2: " + s.policy_force_moving value: 100*s.avg_statisfied_day marker: true style: line thickness: 3;
+//					data "Case " + int(s) + ": policy lv1: " + s.policy_ban_gasoline + ", policy lv2: " + s.policy_idle_fee + ", policy lv3: " + s.policy_relocation + ", policy lv4: " + s.policy_notification value: 100*s.avg_statisfied_day marker: true style: line thickness: 3;
 //				}
 //			}
 //		}
 //	}
-//	reflex column_name when: (cycle = 286){
-//		save ["Cycle", "Current date", "Case 0", "Case 1", "Case 2", "Case 3"] 
-//			to: "Results/multi_case_avg_percent.csv" format:"csv" rewrite: (cycle = 286) ? true : false header: false;	
-//	}
+//	
+//
 //	reflex export_value when: (current_date.hour = 23 and current_date.minute = 55) {	
 //		list combinedResults <- [cycle, current_date];
 //		loop s over: simulations{
 //			ask s {
-//				combinedResults <- combinedResults + [100*s.avg_statisfied_day];
+//				combinedResults <- 100*s.avg_statisfied_day;
 //			}
 //		}
 //		save combinedResults 
-//			to: "Test/multi_case_avg_percent.csv" format:"csv" rewrite: false header: false;
-//		}		
+//			to: "Test/multi_policy_satisfied_EV200.csv" format:"csv" rewrite: false header: false;
+//		}	
+//
 //}
+
+experiment batch_policy type: batch  repeat: 10 parallel: 10 keep_seed: true until: (cycle=287) {
+		
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 100;
+	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car" <- 30;
+
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" <- 20;
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "No. Active Charrging Stations" <- 15;
+	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations" <- 4;
+	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations" <- 4;
+	
+	parameter "Adding solar panel into CS Infrastructure" var: add_solar category: "Renewable Energy" <- false;
+	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy" <- false;
+
+    parameter "Policy 1: Ban gasoline vehicles from active charging stations" var: policy_ban_gasoline category: "Policies" among: [true, false];
+    parameter "Policy 2: Charge idle fees of 1,000 VND/min after 30 minutes of full charge" var: policy_idle_fee category: "Policies" among: [true, false];
+    parameter "Policy 3: Relocate fully charged EVs to inactive charging stations" var: policy_relocation category: "Policies" among: [true, false];
+    parameter "Policy 4: Notify users when nearby charging spots are available" var: policy_notification category: "Policies" among: [true, false];
+
+	method exploration;	 
+        
+	reflex save_results_explore {
+		ask simulations {
+			save [int(self), self.nb_electrical, self.nb_activeCS_Cparking, self.nb_activeCS_Cparking_fast,
+					self. nb_solar, self.nb_wind,
+					self.policy_ban_gasoline, self.policy_idle_fee,
+					self.policy_relocation, self.policy_notification,
+					self.avg_statisfied_day, self.monthly_profit,
+					self.monthly_energy_consumption, self.monthly_renew_charge, 
+					self.self_consumption, self.self_sufficiency, 
+					self.payback_period, self.payback_period_norm,
+					self.metric
+			]
+		   		to: "Test/test_policy_v0.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		}		
+	}
+}
+
+experiment sobol_analysis type: batch until:(current_date.hour = 23 and current_date.minute = 55) repeat: 10 parallel: 10 {
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" min:50 max:200 step:50;
+	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
+	
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:20 max:50 step:5;
+	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
+	
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
+	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "J_parking" <- 4;
+	
+	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- true;
+	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" min: 200 max: 900 step: 100;
+	
+	parameter "Add wind turbine" var: add_wind category: "Renewable Energy" <- false;
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" <- 0;
+
+	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy" <- 60;
+	
+	parameter "Policy 1: Ban gasoline vehicles from active charging stations" var: policy_ban_gasoline category: "Policies" among: [true, false];
+    parameter "Policy 2: Charge idle fees of 1,000 VND/min after 30 minutes of full charge" var: policy_idle_fee category: "Policies" among: [true, false];
+    parameter "Policy 3: Relocate fully charged EVs to inactive charging stations" var: policy_relocation category: "Policies" among: [true, false];
+    parameter "Policy 4: Notify users when nearby charging spots are available" var: policy_notification category: "Policies" among: [true, false];
+
+	method sobol outputs:["avg_statisfied_day","self_consumption","self_sufficiency", "payback_period_norm", "metric"] sample:1000 report:"Results_new/sobol_v1.txt" results:"Results_new/sobol_raw_v1.csv";
+}
