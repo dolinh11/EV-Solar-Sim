@@ -12,9 +12,9 @@ model energy
 
 global {
 	
-	file energy_realtime <- csv_file("../includes/weather/average_time_data.csv",",");
+//	file energy_realtime <- csv_file("../includes/weather/average_time_data.csv",",");
 //	file energy_realtime <- csv_file("../includes/weather/energy_data.csv",",");
-//	file energy_realtime <- csv_file("../includes/weather/avg_month.csv",",");
+	file energy_realtime <- csv_file("../includes/weather/avg_month.csv",",");
 	
 //	file energy_realtime <- csv_file("../includes/weather/avg_month_Q1.csv",",");
 //	file energy_realtime <- csv_file("../includes/weather/avg_month_Q2.csv",",");
