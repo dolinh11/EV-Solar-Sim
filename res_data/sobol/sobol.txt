@@ -1,0 +1,256 @@
+SOBOL ANALYSIS:
+##############################
+output variable : avg_statisfied_day
+-------------------
+nb_activeCS_Cparking : 
+first order : 0.044720568074404284
+first order confidence : 0.05294348618283687
+Total order : 0.39816691559942186
+Total order confidence : 0.055062061273804114
+-------------------
+policy_ban_gasoline : 
+first order : 0.01562568395037892
+first order confidence : 0.036733496524348076
+Total order : 0.1820467961431549
+Total order confidence : 0.040151967943703064
+-------------------
+policy_idle_fee : 
+first order : 0.003659219317477091
+first order confidence : 0.03690758165458191
+Total order : 0.17357373220652939
+Total order confidence : 0.0389779872022025
+-------------------
+nb_activeCS_Cparking_fast : 
+first order : 0.023613832589711677
+first order confidence : 0.04787227819665585
+Total order : 0.3542793077865162
+Total order confidence : 0.052294821138449854
+-------------------
+policy_relocation : 
+first order : 0.013910919042659453
+first order confidence : 0.038735584199324234
+Total order : 0.2101581507236978
+Total order confidence : 0.04187393669706682
+-------------------
+policy_notification : 
+first order : 0.13497438793953245
+first order confidence : 0.050618351454543395
+Total order : 0.3900181072249649
+Total order confidence : 0.06017475596176197
+-------------------
+nb_electrical : 
+first order : 0.26318577268101323
+first order confidence : 0.06363858461566028
+Total order : 0.6613358657085273
+Total order confidence : 0.06107439200126167
+-------------------
+nb_solar : 
+first order : 0.014147068710926108
+first order confidence : 0.04608348247001508
+Total order : 0.28946608162581067
+Total order confidence : 0.05179980288841523
+-------------------
+##############################
+output variable : self_sufficiency
+-------------------
+nb_activeCS_Cparking : 
+first order : 0.02401790721543453
+first order confidence : 0.02618582754170489
+Total order : 0.09770350590525922
+Total order confidence : 0.02831037151199027
+-------------------
+policy_ban_gasoline : 
+first order : 0.006397329145020248
+first order confidence : 0.015242784285885682
+Total order : 0.027251860579249443
+Total order confidence : 0.018242513407952507
+-------------------
+policy_idle_fee : 
+first order : 0.03317432310002782
+first order confidence : 0.027315669397020934
+Total order : 0.06993576353306474
+Total order confidence : 0.025260239202041568
+-------------------
+nb_activeCS_Cparking_fast : 
+first order : 0.004645937803295138
+first order confidence : 0.01734622644975209
+Total order : 0.022879265608777177
+Total order confidence : 0.020913843497283847
+-------------------
+policy_relocation : 
+first order : 0.03614674769321872
+first order confidence : 0.026159022610907794
+Total order : 0.08806640363424567
+Total order confidence : 0.02748718105460408
+-------------------
+policy_notification : 
+first order : 0.017150295630084585
+first order confidence : 0.025084015865148836
+Total order : 0.06792269771162018
+Total order confidence : 0.021408328132548747
+-------------------
+nb_electrical : 
+first order : 0.23138181510499276
+first order confidence : 0.044794866103721784
+Total order : 0.2843151007877557
+Total order confidence : 0.04420595579757955
+-------------------
+nb_solar : 
+first order : 0.49542299768439557
+first order confidence : 0.057079854580969175
+Total order : 0.5831667555842611
+Total order confidence : 0.05620628488671409
+-------------------
+##############################
+output variable : self_consumption
+-------------------
+nb_activeCS_Cparking : 
+first order : -0.002399638777496161
+first order confidence : 0.06444134057756029
+Total order : 0.46244160329310624
+Total order confidence : 0.16779467024009181
+-------------------
+policy_ban_gasoline : 
+first order : 0.008573599851340173
+first order confidence : 0.01901420428008029
+Total order : 0.18489154618619774
+Total order confidence : 0.1521759736746391
+-------------------
+policy_idle_fee : 
+first order : 0.023653421858468124
+first order confidence : 0.031216127005720087
+Total order : 0.26041498420730547
+Total order confidence : 0.16424939104833391
+-------------------
+nb_activeCS_Cparking_fast : 
+first order : 0.007490375112503357
+first order confidence : 0.05293475581039254
+Total order : 0.3520103904598334
+Total order confidence : 0.17667257737043549
+-------------------
+policy_relocation : 
+first order : 0.01898760431106975
+first order confidence : 0.021915979477205565
+Total order : 0.34358481278110675
+Total order confidence : 0.1906147472539801
+-------------------
+policy_notification : 
+first order : 0.008997912378988813
+first order confidence : 0.019061324913800103
+Total order : 0.2326170039473947
+Total order confidence : 0.1788304157046516
+-------------------
+nb_electrical : 
+first order : 0.040715936837267167
+first order confidence : 0.08395664335232389
+Total order : 0.5142252893312944
+Total order confidence : 0.1395337147173882
+-------------------
+nb_solar : 
+first order : 0.15237811615433242
+first order confidence : 0.0979485490895595
+Total order : 0.7410471210762937
+Total order confidence : 0.1684257047566106
+-------------------
+##############################
+output variable : payback_period_norm
+-------------------
+nb_activeCS_Cparking : 
+first order : -0.013634060577480069
+first order confidence : 0.02814872797917839
+Total order : 0.10994221484901978
+Total order confidence : 0.025391498927681114
+-------------------
+policy_ban_gasoline : 
+first order : -0.0061118278708495255
+first order confidence : 0.020092000703301572
+Total order : 0.04013429026421633
+Total order confidence : 0.016579238056163584
+-------------------
+policy_idle_fee : 
+first order : 0.03203588628920351
+first order confidence : 0.029921056161179908
+Total order : 0.10900294340822225
+Total order confidence : 0.024706064170667393
+-------------------
+nb_activeCS_Cparking_fast : 
+first order : 0.0036647908059106275
+first order confidence : 0.0195853995360364
+Total order : 0.05270082478041471
+Total order confidence : 0.017328473154158194
+-------------------
+policy_relocation : 
+first order : 0.024212559105377913
+first order confidence : 0.030344110951875607
+Total order : 0.11181828387584059
+Total order confidence : 0.02813559130097592
+-------------------
+policy_notification : 
+first order : 0.02996318580520523
+first order confidence : 0.025852400920192548
+Total order : 0.0939746280320396
+Total order confidence : 0.02378190014434504
+-------------------
+nb_electrical : 
+first order : 0.12304984454500202
+first order confidence : 0.0485548824161043
+Total order : 0.3188093606824831
+Total order confidence : 0.04271395065484764
+-------------------
+nb_solar : 
+first order : 0.518939873071369
+first order confidence : 0.0631951827569427
+Total order : 0.7161211429904017
+Total order confidence : 0.0573877855828405
+-------------------
+##############################
+output variable : metric
+-------------------
+nb_activeCS_Cparking : 
+first order : -0.03464149999319268
+first order confidence : 0.03278816017095032
+Total order : 0.153093101146081
+Total order confidence : 0.031438375517990086
+-------------------
+policy_ban_gasoline : 
+first order : -0.015082075161848925
+first order confidence : 0.02194906507664998
+Total order : 0.06693028541476531
+Total order confidence : 0.020039821483707393
+-------------------
+policy_idle_fee : 
+first order : 0.00922390392565654
+first order confidence : 0.02435276923643284
+Total order : 0.05647108521132749
+Total order confidence : 0.019745086474966957
+-------------------
+nb_activeCS_Cparking_fast : 
+first order : -0.004464118684960539
+first order confidence : 0.02994959357744245
+Total order : 0.10905863296290352
+Total order confidence : 0.025219991594406063
+-------------------
+policy_relocation : 
+first order : 0.0036736110614879144
+first order confidence : 0.024661712634429653
+Total order : 0.07355597082666088
+Total order confidence : 0.022005928415769396
+-------------------
+policy_notification : 
+first order : -0.0068463318173101195
+first order confidence : 0.023107164142685443
+Total order : 0.07269418447496001
+Total order confidence : 0.021557825945372793
+-------------------
+nb_electrical : 
+first order : 0.37488679658109364
+first order confidence : 0.05903137607592053
+Total order : 0.5073785065987613
+Total order confidence : 0.05164441681160331
+-------------------
+nb_solar : 
+first order : 0.381181772816269
+first order confidence : 0.05812828539630433
+Total order : 0.5728066204595063
+Total order confidence : 0.0503548087499959
+-------------------

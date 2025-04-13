@@ -16,10 +16,10 @@ global {
 //	file energy_realtime <- csv_file("../includes/weather/energy_data.csv",",");
 //	file energy_realtime <- csv_file("../includes/weather/avg_month.csv",",");
 	
-//	file energy_realtime <- csv_file("../includes/weather/average_Q1.csv",",");
-//	file energy_realtime <- csv_file("../includes/weather/average_Q2.csv",",");
-//	file energy_realtime <- csv_file("../includes/weather/average_Q3.csv",",");
-//	file energy_realtime <- csv_file("../includes/weather/average_Q4.csv",",");
+//	file energy_realtime <- csv_file("../includes/weather/avg_month_Q1.csv",",");
+//	file energy_realtime <- csv_file("../includes/weather/avg_month_Q2.csv",",");
+//	file energy_realtime <- csv_file("../includes/weather/avg_month_Q3.csv",",");
+//	file energy_realtime <- csv_file("../includes/weather/avg_month_Q4.csv",",");
 
 	// Energy Real-time Data
 	int current_row <- 0;

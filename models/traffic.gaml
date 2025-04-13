@@ -190,7 +190,7 @@ species car skills: [moving] {
 	} }
 
 species car_gasoline parent: car {
-	rgb color <- #red;
+	rgb color <- #blue;
 	float parking_active_prob; //probability of randomly parked in an active_CS slot
 	action assign_slot {
 		if not policy_ban_gasoline {
@@ -212,7 +212,7 @@ species car_gasoline parent: car {
 }
 
 species car_electrical parent: car {
-	rgb color <- #green;
+	rgb color <- #yellow;
 	float parking_active_prob; //probability of randomly parked in an active_CS slot
 	bool satisfied <- true;
 	bool is_charging <- false;

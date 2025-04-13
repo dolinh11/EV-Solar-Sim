@@ -26,14 +26,11 @@ global {
 	float step <- 5 #mn;
 	date starting_date <- date("2024-01-01 00:00:00");
 	
-//	file energy_realtime <- csv_file("../includes/weather/average_by_time_data.csv",",");
-//	file energy_realtime <- csv_file("../includes/weather/energy_data.csv",",");
-	
 	init {
 //		seed <- 32.0;
 		create chargingAreas from: shape_file_chargingareas with: [type:: string(read("fclass")), active_CS::int(read("active_CS")), num_CS::int(read("num_CS"))] {
 			if type = "C_parking" {
-				chargingAreas_color <- #yellow;
+				chargingAreas_color <- #gray;
 			}
 
 			chargingAreas[0].active_CS <- nb_activeCS_Cparking;
@@ -47,7 +44,7 @@ global {
 		create residential from: shape_file_residential;
 		create gate from: shape_file_gate with: [type:: string(read("fclass")), state_type::string(read("state"))] {
 			if state_type = "close" {
-				gate_color <- #navy;
+				gate_color <- #black;
 			}
 		}
 
@@ -200,16 +197,16 @@ global {
 }
 
 experiment traffic_dashboard type: gui {
-	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car";
-	parameter "Number of electric car agents" var: nb_electrical category: "No. Car";
-	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations";
+	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car" <- 30;
+	parameter "Number of electric car agents" var: nb_electrical category: "No. Car" <- 50;
+	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations" ;
 	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "No. Active Charrging Stations";
 	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations";
 	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations";
 	parameter "Adding solar panel into CS Infrastructure" var: add_solar category: "Renewable Energy";
-	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy";
-	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy";
-	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy";
+	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" <- 500;
+	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy" <- false;
+	parameter "Number of wind turbine" var: nb_wind category: "Renewable Energy" <- 0;
 	parameter "Expected payback period" var: payback_threshold category: "Renewable Energy";
 	parameter "Policy 1: Ban gasoline vehicles from active charging stations" var: policy_ban_gasoline category: "Policies";
 	parameter "Policy 2: Charge idle fees of 1,000 VND/min after 30 minutes of full charge" var: policy_idle_fee category: "Policies";
@@ -241,33 +238,49 @@ experiment traffic_dashboard type: gui {
 		display Revenue_Profit type: 2d  refresh: (current_date.hour = 23 and current_date.minute = 55){ 
 			chart "Monthly Revenue & Profit (in VND)" type: series memorize: false x_label: "Month"{
 				data "Total monthly revenue" value: monthly_revenue color: #black marker: true;
-				data "Total monthly cost" value: monthly_cost color: #red marker: true;
+				data "Total monthly cost" value: monthly_cost color: #orange marker: true;
 				data "Total monthly profit" value: monthly_profit color: #blue marker: true;
 			}		
 		}
 		display Payback type: 2d  refresh: (current_date.hour = 23 and current_date.minute = 55){ 
 			chart "Payback process" type: series memorize: false x_label: "Month"{
-				data "Payback for investment" value: payback_process color: #green marker: true;
+				data "Payback for investment" value: payback_process color: #blue marker: true;
 			}	
 		}
 		
 		display monthly_energy_consumption type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55) {
 			chart "Monthly Electric Energy Consumption (kWh)" type: series memorize: false x_label: "Month" {
-				data "monthly_renewable_energy_consumption (kWh)" value: monthly_renew_charge/1000 color: #green marker: true style: line;
-				data "monthly_energy_consumption (kWh)" value: monthly_energy_consumption/1000 color: #red marker: true style: line;
+				data "monthly_renewable_energy_consumption (kWh)" value: monthly_renew_charge/1000 color: #orange marker: true style: line;
+				data "monthly_energy_consumption (kWh)" value: monthly_energy_consumption/1000 color: #blue marker: true style: line;
 			}
 		}
 		
 		display ratio_renewable_energy type: 2d refresh: (current_date.hour = 23 and current_date.minute = 55) {
 			chart "Daily Renewable Energy Effectiveness" type: series memorize: false x_label: "Day" {
-				data "self-consumpation ratio" value: self_consumption color: #red marker: true style: line;
-				data "self-sufficiency ratio" value: self_sufficiency color: #green marker: true style: line;
+				data "self-consumpation ratio" value: self_consumption color: #orange marker: true style: line;
+				data "self-sufficiency ratio" value: self_sufficiency color: #blue marker: true style: line;
 			}
 		}		
 	}
+
+//	reflex column_name when: (cycle = 286){
+//		save ["Cycle", "Current date", "Case 0", "Case 1", "Case 2", "Case 3"] 
+//			to: "Results/gui_Q1_wo_wind_v1.csv" format:"csv" rewrite: (cycle = 286) ? true : false header: false;	
+//	}
+//	reflex export_value when: (current_date.hour = 23 and current_date.minute = 55) {	
+//		list combinedResults <- [cycle, current_date];
+//		loop s over: simulations{
+//			ask s {
+//				combinedResults <- combinedResults + [s.self_sufficiency];
+//			}
+//		}
+//		save combinedResults 
+//			to: "res_data/weather/test_Q1_wo_wind.csv" format:"csv" rewrite: false header: false;
+//		}
 }
 
-experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true until: (cycle=287) {
+
+experiment batch_config type: batch  repeat: 10 parallel: 10 keep_seed: true until: (cycle=287) {
 	init {
 	//Make grids schedule their agents in parallel
 	gama.pref_parallel_grids <- false;
@@ -277,15 +290,15 @@ experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true
 	gama.pref_parallel_species <- false;
   }
 		
-	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 200;
+	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 100;
 	
 	parameter "Number of gasoline car agents" var: nb_gasoline category: "Gasoline Car" <- 30;
 	
 	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "C_parking" min:20 max:50 step:5;
 	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "C_parking" min:2 max:10 step:2;
 	
-	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" <- 15;
-	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "J_parking" <- 4;
+	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "J_parking" min:15 max:30 step:3;
+	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "J_parking" min:2 max:8 step:2;
 	
 	parameter "Add solar panel" var: add_solar category: "Renewable Energy" <- true;
 	parameter "Number of solar panel" var: nb_solar category: "Renewable Energy" min: 200 max: 900 step: 100;
@@ -305,7 +318,7 @@ experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true
 
 //	method exploration;	
 
-	method hill_climbing maximize: metric; 
+//	method hill_climbing maximize: metric; 
     
 //    method annealing 
 //        temp_init: 0.5  temp_end: 0.02
@@ -325,11 +338,12 @@ experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true
 //         pop_dim: 20 crossover_prob: 0.8 mutation_prob: 0.1 
 //         nb_prelim_gen: 3 max_gen: 40;
 
-//	  method pso num_particles: 5 weight_inertia: 0.7 weight_cognitive: 1.4 weight_social: 1.6  iter_max: 10  maximize: metric; 
+	  method pso num_particles: 5 weight_inertia: 0.7 weight_cognitive: 1.4 weight_social: 1.6  iter_max: 10  maximize: metric; 
         
 	reflex save_results_explore {
 		ask simulations {
 			save [int(self), self.nb_electrical, self.nb_activeCS_Cparking, self.nb_activeCS_Cparking_fast,
+				    self.nb_activeCS_Jparking, self.nb_activeCS_Jparking_fast,
 					self. nb_solar, self.nb_wind,
 					self.avg_statisfied_day, self.monthly_profit,
 					self.monthly_energy_consumption, self.monthly_renew_charge, 
@@ -337,74 +351,11 @@ experiment batch_experiment type: batch  repeat: 10 parallel: 10 keep_seed: true
 					self.payback_period, self.payback_period_norm,
 					self.metric
 			]
-		   		to: "Test/test_hill.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		   		to: "res_data/config/test_pso_EV100.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }
 
-
-//experiment alter_1_indi_1_effectiveness type: gui {
-//	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 30;
-//	init {
-//		create simulation with: [nb_activeCS_Cparking::10, nb_activeCS_Jparking::6];
-//		create simulation with: [nb_activeCS_Cparking::6, nb_activeCS_Jparking::10];
-//		create simulation with: [nb_activeCS_Cparking::10, nb_activeCS_Jparking::10];
-//		create simulation with: [nb_activeCS_Cparking::20, nb_activeCS_Jparking::20];
-//	}
-//	permanent {
-//		display Comparison refresh: every(288 #cycle) {
-//			chart "Avg Percent of charged EV" type: series {
-//				loop s over: simulations  {
-//					data "C: " + s.nb_activeCS_Cparking + ", J: " + s.nb_activeCS_Jparking value: 100*s.avg_statisfied_day marker: true style: line thickness: 3;
-//				}
-//			}
-//		}
-//	}		
-//}
-
-//experiment gui_policy type: gui {
-//	parameter "Number of electrical car agents" var: nb_electrical category: "Electrical Car" <- 200;
-//	parameter "Number of gasoline car agents" var: nb_gasoline category: "No. Car" <- 30;
-//
-//	parameter "Number of active CS at C_parking" var: nb_activeCS_Cparking category: "No. Active Charrging Stations" <- 20;
-//	parameter "Number of active CS at J_parking" var: nb_activeCS_Jparking category: "No. Active Charrging Stations" <- 15;
-//	parameter "Number of fast active CS at C_parking" var: nb_activeCS_Cparking_fast category: "No. Active Charrging Stations" <- 4;
-//	parameter "Number of fast active CS at J_parking" var: nb_activeCS_Jparking_fast category: "No. Active Charrging Stations" <- 4;
-//	
-//	parameter "Adding solar panel into CS Infrastructure" var: add_solar category: "Renewable Energy" <- false;
-//	parameter "Adding wind turbine into CS Infrastructure" var: add_wind category: "Renewable Energy" <- false;
-//	
-//	init {
-//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: false, policy_relocation :: false, policy_notification :: false];
-//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: true, policy_relocation :: false, policy_notification :: false];
-//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: true, policy_relocation :: true, policy_notification :: false];
-//		create simulation with: [policy_ban_gasoline :: true, policy_idle_fee :: true, policy_relocation :: true, policy_notification :: true];
-//	}
-//	
-//	
-//	permanent {
-//		display Comparison refresh: (current_date.hour = 23 and current_date.minute = 55) {
-//			chart "Avg Percent of charged EV" type: series {
-//				loop s over: simulations  {
-//					data "Case " + int(s) + ": policy lv1: " + s.policy_ban_gasoline + ", policy lv2: " + s.policy_idle_fee + ", policy lv3: " + s.policy_relocation + ", policy lv4: " + s.policy_notification value: 100*s.avg_statisfied_day marker: true style: line thickness: 3;
-//				}
-//			}
-//		}
-//	}
-//	
-//
-//	reflex export_value when: (current_date.hour = 23 and current_date.minute = 55) {	
-//		list combinedResults <- [cycle, current_date];
-//		loop s over: simulations{
-//			ask s {
-//				combinedResults <- 100*s.avg_statisfied_day;
-//			}
-//		}
-//		save combinedResults 
-//			to: "Test/multi_policy_satisfied_EV200.csv" format:"csv" rewrite: false header: false;
-//		}	
-//
-//}
 
 experiment batch_policy type: batch  repeat: 10 parallel: 10 keep_seed: true until: (cycle=287) {
 		
@@ -438,7 +389,7 @@ experiment batch_policy type: batch  repeat: 10 parallel: 10 keep_seed: true unt
 					self.payback_period, self.payback_period_norm,
 					self.metric
 			]
-		   		to: "Test/test_policy_v0.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
+		   		to: "res_data/policy/test_policy.csv" format:"csv" rewrite: (int(self) = 0) ? true : false header: true;
 		}		
 	}
 }
@@ -466,5 +417,5 @@ experiment sobol_analysis type: batch until:(current_date.hour = 23 and current_
     parameter "Policy 3: Relocate fully charged EVs to inactive charging stations" var: policy_relocation category: "Policies" among: [true, false];
     parameter "Policy 4: Notify users when nearby charging spots are available" var: policy_notification category: "Policies" among: [true, false];
 
-	method sobol outputs:["avg_statisfied_day","self_consumption","self_sufficiency", "payback_period_norm", "metric"] sample:1000 report:"Results_new/sobol_v1.txt" results:"Results_new/sobol_raw_v1.csv";
+	method sobol outputs:["avg_statisfied_day","self_consumption","self_sufficiency", "payback_period_norm", "metric"] sample:1000 report:"res_data/sobol/test_sobol.txt" results:"res_data/sobol/test_sobol_raw.csv";
 }

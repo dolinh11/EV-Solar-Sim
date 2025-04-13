@@ -30,7 +30,7 @@ global {
 species gate {
 	string type;
 	string state_type;
-	rgb gate_color <- #yellow;
+	rgb gate_color <- #orange;
 
 	aspect base {
 		draw square(12) color: gate_color border: #black;
@@ -39,7 +39,7 @@ species gate {
 }
 
 species residential {
-	rgb residential_color <- #gray;
+	rgb residential_color <- #cyan;
 
 	aspect base {
 		draw shape color: residential_color border: #black;
@@ -48,7 +48,7 @@ species residential {
 }
 
 species building {
-	rgb building_color <- rgb(72, 175, 231);
+	rgb building_color <- #white;
 
 	aspect base {
 		draw shape color: building_color border: #black;
@@ -57,7 +57,7 @@ species building {
 }
 
 species vinuniBound {
-	rgb bound_color <- rgb(103, 174, 115);
+	rgb bound_color <- #beige;
 
 	aspect base {
 		draw shape color: bound_color border: #black;
@@ -90,7 +90,7 @@ species chargingAreas {
 	int active_CS;
 	int activeCS_fast;
 	int num_CS;
-	rgb chargingAreas_color <- #orange;
+	rgb chargingAreas_color <- #lightgray;
 
 	aspect base {
 		draw shape color: chargingAreas_color;
